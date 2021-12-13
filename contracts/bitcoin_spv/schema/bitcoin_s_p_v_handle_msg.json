@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BitcoinSPVHandleMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "add_headers"
+      ],
+      "properties": {
+        "add_headers": {
+          "type": "object",
+          "required": [
+            "headers",
+            "tip_height"
+          ],
+          "properties": {
+            "headers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Binary"
+              }
+            },
+            "tip_height": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    }
+  }
+}

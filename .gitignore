@@ -1,0 +1,35 @@
+# Rust
+# Build results
+target
+# Contain wasm files
+contract.wasm
+contract.wasm.gz
+
+# Binaries
+#*.wasm
+#*.wasm.gz
+
+# Cargo+Git helper file (https://github.com/rust-lang/cargo/blob/0.44.1/src/cargo/sources/git/utils.rs#L320-L327)
+.cargo-ok
+
+# Text file backups
+**/*.rs.bk
+
+# macOS
+.DS_Store
+
+# IDEs
+*.iml
+.idea
+
+# Typescript
+build
+.eslintcache
+yarn-error.log
+node_modules
+.env
+
+# Deploy Reports
+deploy_reports
+
+.priv_mnemonic

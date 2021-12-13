@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InitMsg",
+  "type": "object",
+  "required": [
+    "config"
+  ],
+  "properties": {
+    "config": {
+      "$ref": "#/definitions/Config"
+    }
+  },
+  "definitions": {
+    "Config": {
+      "type": "object",
+      "required": [
+        "log",
+        "owner",
+        "snb"
+      ],
+      "properties": {
+        "log": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "owner": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "snb": {
+          "$ref": "#/definitions/ContractReference"
+        }
+      }
+    },
+    "ContractReference": {
+      "type": "object",
+      "required": [
+        "address",
+        "hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "hash": {
+          "type": "string"
+        }
+      }
+    },
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InitMsg",
+  "type": "object",
+  "required": [
+    "config",
+    "prng_seed"
+  ],
+  "properties": {
+    "config": {
+      "$ref": "#/definitions/Config"
+    },
+    "prng_seed": {
+      "$ref": "#/definitions/Binary"
+    }
+  },
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "Config": {
+      "type": "object",
+      "required": [
+        "bitcoin_spv",
+        "btc_tx_values",
+        "finance_admin",
+        "log",
+        "sbtc",
+        "sfps"
+      ],
+      "properties": {
+        "bitcoin_spv": {
+          "description": "[Contract References]",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ContractReference"
+            }
+          ]
+        },
+        "btc_tx_values": {
+          "description": "[Bitcoin] Unit of utxo value that the contrat accepts",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        },
+        "finance_admin": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "log": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "sbtc": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "sfps": {
+          "$ref": "#/definitions/ContractReference"
+        }
+      }
+    },
+    "ContractReference": {
+      "type": "object",
+      "required": [
+        "address",
+        "hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "hash": {
+          "type": "string"
+        }
+      }
+    },
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}

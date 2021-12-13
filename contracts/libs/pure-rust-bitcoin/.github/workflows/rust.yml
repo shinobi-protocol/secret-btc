@@ -1,0 +1,117 @@
+on: [push, pull_request]
+
+name: Continuous integration
+
+jobs:
+  Tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - rust: stable
+            env:
+              DO_COV: true
+              AS_DEPENDENCY: true
+              DO_NO_STD: true
+          - rust: beta
+            env:
+              AS_DEPENDENCY: true
+              DO_NO_STD: true
+          - rust: nightly
+            env:
+              DO_BENCH: true
+              AS_DEPENDENCY: true
+              DO_NO_STD: true
+          - rust: 1.29.0
+            env:
+              AS_DEPENDENCY: true
+              PIN_VERSIONS: true
+    steps:
+      - name: Checkout Crate
+        uses: actions/checkout@v2
+      - name: Checkout Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - name: Running test script
+        env: ${{ matrix.env }}
+        run: ./contrib/test.sh
+
+  Arch32bit:
+    name: Testing 32-bit version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Crate
+        uses: actions/checkout@v2
+      - name: Checkout Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Add architecture i386
+        run: sudo dpkg --add-architecture i386
+      - name: Install i686 gcc
+        run: sudo apt-get update -y && sudo apt-get install -y gcc-multilib
+      - name: Install target
+        run: rustup target add i686-unknown-linux-gnu
+      - name: Run test on i686
+        run: cargo test --target i686-unknown-linux-gnu
+
+  Cross:
+    name: Cross testing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Crate
+        uses: actions/checkout@v2
+      - name: Checkout Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Install target
+        run: rustup target add s390x-unknown-linux-gnu
+      - name: install cross
+        run: cargo install cross
+      - name: run cross test
+        run: cross test --target s390x-unknown-linux-gnu
+
+  Docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Crate
+        uses: actions/checkout@v2
+      - name: Checkout Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Create Doc
+        run: cargo doc
+  Embedded:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up QEMU
+        run: sudo apt update && sudo apt install qemu-system-arm gcc-arm-none-eabi
+      - name: Checkout Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rust-src
+          target: thumbv7m-none-eabi
+      - name: Run
+        env:
+          RUSTFLAGS: "-C link-arg=-Tlink.x"
+          CARGO_TARGET_THUMBV7M_NONE_EABI_RUNNER: "qemu-system-arm -cpu cortex-m3 -machine mps2-an385 -m 1G -nographic -semihosting-config enable=on,target=native -kernel"
+        run: cd embedded && cargo run --target thumbv7m-none-eabi
+

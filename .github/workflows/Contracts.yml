@@ -1,0 +1,554 @@
+# Based on https://github.com/actions-rs/example/blob/master/.github/workflows/quickstart.yml
+
+name: Contracts
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "contracts/**/*"
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - "contracts/**/*"
+
+jobs:
+  gateway-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --locked --manifest-path=contracts/gateway/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Compile WASM contract
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target wasm32-unknown-unknown --locked --manifest-path=contracts/gateway/Cargo.toml
+        env:
+          RUSTFLAGS: "-C link-arg=-s"
+
+      - name: Generate Schema
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example schema --locked --manifest-path=contracts/gateway/Cargo.toml
+
+  gateway-lints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path=contracts/gateway/Cargo.toml -- --check --config-path=contracts/gateway/rustfmt.toml
+
+  bitcoin-spv-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --locked --manifest-path=contracts/bitcoin_spv/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Compile WASM contract
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target wasm32-unknown-unknown --locked --manifest-path=contracts/bitcoin_spv/Cargo.toml
+        env:
+          RUSTFLAGS: "-C link-arg=-s"
+
+      - name: Generate Schema
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example schema --locked --manifest-path=contracts/bitcoin_spv/Cargo.toml
+
+  bitcoin-spv-lints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path=contracts/bitcoin_spv/Cargo.toml -- --check --config-path=contracts/bitcoin_spv/rustfmt.toml
+
+  multisig-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --locked --manifest-path=contracts/multisig/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Compile WASM contract
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target wasm32-unknown-unknown --locked --manifest-path=contracts/multisig/Cargo.toml
+        env:
+          RUSTFLAGS: "-C link-arg=-s"
+
+      - name: Generate Schema
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example schema --locked --manifest-path=contracts/multisig/Cargo.toml
+
+  multisig-lints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all --manifest-path=contracts/multisig/Cargo.toml -- --check --config-path=contracts/multisig/rustfmt.toml
+
+  sfps-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --locked --manifest-path=contracts/sfps/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Compile WASM contract
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target wasm32-unknown-unknown --locked --manifest-path=contracts/sfps/Cargo.toml
+        env:
+          RUSTFLAGS: "-C link-arg=-s"
+
+      - name: Generate Schema
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example schema --locked --manifest-path=contracts/sfps/Cargo.toml
+
+  sfps-lints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path=contracts/sfps/Cargo.toml -- --check --config-path=contracts/sfps/rustfmt.toml
+
+  finance-admin-v1-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --locked --manifest-path=contracts/finance_admin_v1/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Compile WASM contract
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target wasm32-unknown-unknown --locked --manifest-path=contracts/finance_admin_v1/Cargo.toml
+        env:
+          RUSTFLAGS: "-C link-arg=-s"
+
+      - name: Generate Schema
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example schema --locked --manifest-path=contracts/finance_admin_v1/Cargo.toml
+
+  finance-admin-v1-lints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path=contracts/finance_admin_v1/Cargo.toml -- --check --config-path=contracts/finance_admin_v1/rustfmt.toml
+
+  treasury-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --locked --manifest-path=contracts/treasury/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Compile WASM contract
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target wasm32-unknown-unknown --locked --manifest-path=contracts/treasury/Cargo.toml
+        env:
+          RUSTFLAGS: "-C link-arg=-s"
+
+      - name: Generate Schema
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example schema --locked --manifest-path=contracts/treasury/Cargo.toml
+
+  treasury-lints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path=contracts/treasury/Cargo.toml -- --check --config-path=contracts/treasury/rustfmt.toml
+
+  shuriken-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --locked --manifest-path=contracts/shuriken/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Compile WASM contract
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target wasm32-unknown-unknown --locked --manifest-path=contracts/shuriken/Cargo.toml
+        env:
+          RUSTFLAGS: "-C link-arg=-s"
+
+      - name: Generate Schema
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example schema --locked --manifest-path=contracts/shuriken/Cargo.toml
+
+  shuriken-lints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path=contracts/shuriken/Cargo.toml -- --check --config-path=contracts/shuriken/rustfmt.toml
+
+  log-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --locked --manifest-path=contracts/log/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Compile WASM contract
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target wasm32-unknown-unknown --locked --manifest-path=contracts/log/Cargo.toml
+        env:
+          RUSTFLAGS: "-C link-arg=-s"
+
+      - name: Generate Schema
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example schema --locked --manifest-path=contracts/log/Cargo.toml
+
+  log-lints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path=contracts/log/Cargo.toml -- --check --config-path=contracts/log/rustfmt.toml
+
+  bitcoin-header-chain-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --locked --manifest-path=contracts/libs/bitcoin_header_chain/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+  ed26619-dalek-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path=contracts/libs/ed25519-dalek/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+  pure-rust-bitcoin-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path=contracts/libs/pure-rust-bitcoin/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+  sfps-lib-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.53.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --locked --manifest-path=contracts/libs/sfps_lib/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1

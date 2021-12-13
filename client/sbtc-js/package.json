@@ -1,0 +1,50 @@
+{
+    "name": "sbtc-js",
+    "version": "1.0.0",
+    "main": "build/index.js",
+    "typings": "build/index.d.ts",
+    "files": [
+        "build"
+    ],
+    "scripts": {
+        "schema": "yarn schema-treasury && yarn schema-shuriken && yarn schema-finance-admin-v1 && yarn schema-gateway && yarn schema-bitcoin-spv && yarn schema-sfps && yarn schema-log && yarn schema-token",
+        "schema-shuriken": "npx quicktype -s schema ../../contracts/shuriken/schema/*.json -o src/contracts/shuriken/types.ts --lang ts && npx prettier -w src/contracts/shuriken/types.ts",
+        "schema-treasury": "npx quicktype -s schema ../../contracts/treasury/schema/*.json -o src/contracts/treasury/types.ts --lang ts && npx prettier -w src/contracts/treasury/types.ts",
+        "schema-finance-admin-v1": "npx quicktype -s schema ../../contracts/finance_admin_v1/schema/*.json -o src/contracts/finance_admin_v1/types.ts --lang ts && npx prettier -w src/contracts/finance_admin_v1/types.ts",
+        "schema-gateway": "npx quicktype -s schema ../../contracts/gateway/schema/*.json -o src/contracts/gateway/types.ts --lang ts && npx prettier -w src/contracts/gateway/types.ts",
+        "schema-bitcoin-spv": "npx quicktype -s schema ../../contracts/bitcoin_spv/schema/*.json -o src/contracts/bitcoin_spv/types.ts --lang ts && npx prettier -w src/contracts/bitcoin_spv/types.ts",
+        "schema-sfps": "npx quicktype -s schema ../../contracts/sfps/schema/*.json -o src/contracts/sfps/types.ts --lang ts && npx prettier -w src/contracts/sfps/types.ts",
+        "schema-log": "npx quicktype -s schema ../../contracts/log/schema/*.json -o src/contracts/log/types.ts --lang ts && npx prettier -w src/contracts/log/types.ts",
+        "schema-token": "npx quicktype -s schema ../../contracts/token/schema/*.json -o src/contracts/token/types.ts --lang ts && npx prettier -w src/contracts/token/types.ts",
+        "build": "npx tsc && cp src/contracts/sfps/tendermint.abci.proto build/contracts/sfps",
+        "test": "npx mocha --require ts-node/register ./test/*.spec.ts"
+    },
+    "author": "Shinobi Protocol",
+    "license": "AGPL-3.0-or-later",
+    "dependencies": {
+        "axios": "^0.21.1",
+        "bignumber.js": "^9.0.1",
+        "bitcoinjs-lib": "^5.2.0",
+        "protobufjs": "^6.11.2",
+        "secretjs": "0.17.3",
+        "winston": "^3.3.3"
+    },
+    "devDependencies": {
+        "@types/chai": "^4.2.14",
+        "@types/mocha": "^8.2.0",
+        "@types/node": "^14.14.21",
+        "@types/node-schedule": "^1.3.1",
+        "@typescript-eslint/eslint-plugin": "^4.11.1",
+        "@typescript-eslint/parser": "^4.11.1",
+        "chai": "^4.2.0",
+        "eslint": "^7.16.0",
+        "eslint-config-prettier": "^7.1.0",
+        "mocha": "^8.2.1",
+        "nodemon": "^2.0.6",
+        "prettier": "^2.2.1",
+        "quicktype": "^15.0.258",
+        "shuriken-node": "../shuriken-node",
+        "ts-node": "^9.1.1",
+        "typescript": "^4.1.3"
+    }
+}

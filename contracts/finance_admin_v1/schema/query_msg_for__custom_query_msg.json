@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg_for_CustomQueryMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "mint_reward"
+      ],
+      "properties": {
+        "mint_reward": {
+          "type": "object",
+          "required": [
+            "minter",
+            "sbtc_mint_amount",
+            "sbtc_total_supply"
+          ],
+          "properties": {
+            "minter": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "sbtc_mint_amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "sbtc_total_supply": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "release_fee"
+      ],
+      "properties": {
+        "release_fee": {
+          "type": "object",
+          "required": [
+            "releaser",
+            "sbtc_release_amount",
+            "sbtc_total_supply"
+          ],
+          "properties": {
+            "releaser": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "sbtc_release_amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "sbtc_total_supply": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "custom"
+      ],
+      "properties": {
+        "custom": {
+          "type": "object",
+          "required": [
+            "custom_msg"
+          ],
+          "properties": {
+            "custom_msg": {
+              "$ref": "#/definitions/CustomQueryMsg"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "CustomQueryMsg": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "config"
+          ],
+          "properties": {
+            "config": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "total_minted_sbtc"
+          ],
+          "properties": {
+            "total_minted_sbtc": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}

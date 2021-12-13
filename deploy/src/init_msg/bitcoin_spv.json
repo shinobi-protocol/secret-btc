@@ -1,0 +1,14 @@
+{
+    "regtest": {
+        "bitcoin_network": "regtest",
+        "confirmation": 6
+    },
+    "testnet": {
+        "bitcoin_network": "testnet",
+        "confirmation": 1,
+        "initial_header": {
+            "height": 2104704,
+            "header": "BAAAIHsNlzdgHW8U9ZVjn+rb78F1MlalCS8QdyAAAAAAAAAA59IOwK0LGyrQWOxIvVYCqhMm6X4GaAbXSpclYuJmcvvbnJhhnOI2GW7jmXs="
+        }
+    }
+}

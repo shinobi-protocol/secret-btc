@@ -1,0 +1,8 @@
+{
+    "local": {
+        "max_interval": 10
+    },
+    "testnet": {
+        "max_interval": 50
+    }
+}

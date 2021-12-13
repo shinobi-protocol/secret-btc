@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InitMsg",
+  "type": "object",
+  "required": [
+    "config"
+  ],
+  "properties": {
+    "config": {
+      "$ref": "#/definitions/Config"
+    }
+  },
+  "definitions": {
+    "Config": {
+      "type": "object",
+      "required": [
+        "developer_address",
+        "gateway",
+        "owner",
+        "shuriken",
+        "snb",
+        "treasury"
+      ],
+      "properties": {
+        "developer_address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "gateway": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "owner": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "shuriken": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "snb": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "treasury": {
+          "$ref": "#/definitions/ContractReference"
+        }
+      }
+    },
+    "ContractReference": {
+      "type": "object",
+      "required": [
+        "address",
+        "hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "hash": {
+          "type": "string"
+        }
+      }
+    },
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}

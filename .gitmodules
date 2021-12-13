@@ -1,0 +1,3 @@
+[submodule "contracts/token"]
+	path = contracts/token
+	url = https://github.com/enigmampc/snip20-reference-impl.git

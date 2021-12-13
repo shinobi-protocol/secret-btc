@@ -1,0 +1,34 @@
+{
+  "name": "regtest-server",
+  "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bitcoinjs/regtest-server.git"
+  },
+  "author": "",
+  "license": "BSD3",
+  "bugs": {
+    "url": "https://github.com/bitcoinjs/regtest-server/issues"
+  },
+  "homepage": "https://github.com/bitcoinjs/regtest-server#readme",
+  "dependencies": {
+    "bitcoinjs-lib": "5.0.x",
+    "cors": "^2.8.5",
+    "debug": "^4.1.0",
+    "debug-ware": "^1.2.10",
+    "easy-express-api": "^2.0.5",
+    "indexd": "^0.9.0",
+    "leveldown": "^4.0.1",
+    "run-parallel": "^1.1.9",
+    "typeforce": "^1.16.0",
+    "yajrpc": "^1.4.4",
+    "zeromq": "^5.1.0"
+  }
+}

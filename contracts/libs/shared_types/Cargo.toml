@@ -1,0 +1,30 @@
+[package]
+authors = ["Shinobi Protocol"]
+edition = "2018"
+name = "shared_types"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+bitcoin_spv = []
+finance_admin = ["treasury", "gateway", "shuriken"]
+gateway = ["bitcoin_spv", "sfps", "viewing_key", "prng", "log"]
+log = ["viewing_key", "gateway"]
+multisig = []
+prng = ["rand"]
+sfps = ["sfps_lib", "prng"]
+shuriken = ["bitcoin_spv", "sfps", "finance_admin"]
+treasury = ["log"]
+viewing_key = ["prng", "cosmwasm-storage"]
+
+[dependencies]
+cosmwasm-std = {git = "https://github.com/enigmampc/SecretNetwork", tag = "v1.0.4-debug-print"}
+cosmwasm-storage = {git = "https://github.com/enigmampc/SecretNetwork", tag = "v1.0.4-debug-print", optional = true}
+rand = {version = "0.7.3", optional = true}
+schemars = "0.7"
+secret-toolkit = {git = "https://github.com/enigmampc/secret-toolkit", rev = "v0.1.1-debug-print"}
+serde = {version = "1.0.103", default-features = false, features = ["derive"]}
+sfps_lib = {path = "../sfps_lib", optional = true}

@@ -1,0 +1,25 @@
+version: "3"
+services:
+  sn-node:
+    build: docker/sn-node
+    volumes:
+      - .:/root/code
+    networks:
+      - default
+    ports:
+      - "26657:26657"
+      - "1337:1337"
+  bitcoin:
+    build: docker/bitcoin
+    networks:
+      - default
+    ports:
+      - "8080:8080"
+      - "18445:18444"
+networks:
+  default:
+    name: sbtc_local
+    ipam:
+      config:
+        - subnet: 172.16.0.0/24
+          gateway: 172.16.0.1

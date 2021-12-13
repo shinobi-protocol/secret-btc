@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryAnswer",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "mint_address"
+      ],
+      "properties": {
+        "mint_address": {
+          "type": "object",
+          "properties": {
+            "address": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/Config"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "viewing_key_error"
+      ],
+      "properties": {
+        "viewing_key_error": {
+          "type": "object",
+          "required": [
+            "msg"
+          ],
+          "properties": {
+            "msg": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Config": {
+      "type": "object",
+      "required": [
+        "bitcoin_spv",
+        "btc_tx_values",
+        "finance_admin",
+        "log",
+        "sbtc",
+        "sfps"
+      ],
+      "properties": {
+        "bitcoin_spv": {
+          "description": "[Contract References]",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ContractReference"
+            }
+          ]
+        },
+        "btc_tx_values": {
+          "description": "[Bitcoin] Unit of utxo value that the contrat accepts",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        },
+        "finance_admin": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "log": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "sbtc": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "sfps": {
+          "$ref": "#/definitions/ContractReference"
+        }
+      }
+    },
+    "ContractReference": {
+      "type": "object",
+      "required": [
+        "address",
+        "hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "hash": {
+          "type": "string"
+        }
+      }
+    },
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryAnswer",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "max_interval"
+      ],
+      "properties": {
+        "max_interval": {
+          "type": "object",
+          "required": [
+            "max_interval"
+          ],
+          "properties": {
+            "max_interval": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "current_highest_header_hash"
+      ],
+      "properties": {
+        "current_highest_header_hash": {
+          "type": "object",
+          "required": [
+            "hash"
+          ],
+          "properties": {
+            "hash": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "hash_list_length"
+      ],
+      "properties": {
+        "hash_list_length": {
+          "type": "object",
+          "required": [
+            "length"
+          ],
+          "properties": {
+            "length": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "hash_by_index"
+      ],
+      "properties": {
+        "hash_by_index": {
+          "type": "object",
+          "required": [
+            "hash"
+          ],
+          "properties": {
+            "hash": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "verify_tx_result_proof"
+      ],
+      "properties": {
+        "verify_tx_result_proof": {
+          "type": "object",
+          "required": [
+            "decrypted_data"
+          ],
+          "properties": {
+            "decrypted_data": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    }
+  }
+}

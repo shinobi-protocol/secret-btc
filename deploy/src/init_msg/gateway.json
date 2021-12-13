@@ -1,0 +1,18 @@
+{
+    "regtest": {
+        "config": {
+            "btc_tx_values": [
+                100000000,
+                10000000
+            ]
+        }
+    },
+    "testnet": {
+        "config": {
+            "btc_tx_values": [
+                1000,
+                10000
+            ]
+        }
+    }
+}

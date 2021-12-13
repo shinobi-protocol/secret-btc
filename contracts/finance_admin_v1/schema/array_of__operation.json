@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Array_of_Operation",
+  "type": "array",
+  "items": {
+    "$ref": "#/definitions/Operation"
+  },
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Operation": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "send"
+          ],
+          "properties": {
+            "send": {
+              "type": "object",
+              "required": [
+                "amount",
+                "to"
+              ],
+              "properties": {
+                "amount": {
+                  "$ref": "#/definitions/Uint128"
+                },
+                "to": {
+                  "$ref": "#/definitions/HumanAddr"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "receive_from"
+          ],
+          "properties": {
+            "receive_from": {
+              "type": "object",
+              "required": [
+                "amount",
+                "from"
+              ],
+              "properties": {
+                "amount": {
+                  "$ref": "#/definitions/Uint128"
+                },
+                "from": {
+                  "$ref": "#/definitions/HumanAddr"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}

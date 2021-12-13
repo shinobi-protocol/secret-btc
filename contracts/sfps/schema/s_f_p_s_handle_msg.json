@@ -1,0 +1,337 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SFPSHandleMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "add_light_block"
+      ],
+      "properties": {
+        "add_light_block": {
+          "type": "object",
+          "required": [
+            "current_highest_header",
+            "light_block"
+          ],
+          "properties": {
+            "current_highest_header": {
+              "$ref": "#/definitions/Header"
+            },
+            "light_block": {
+              "$ref": "#/definitions/LightBlock"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "add_entropy"
+      ],
+      "properties": {
+        "add_entropy": {
+          "type": "object",
+          "required": [
+            "entropy"
+          ],
+          "properties": {
+            "entropy": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "BlockId": {
+      "description": "BlockID",
+      "type": "object",
+      "required": [
+        "hash"
+      ],
+      "properties": {
+        "hash": {
+          "type": "string"
+        },
+        "parts": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PartSetHeader"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Commit": {
+      "type": "object",
+      "required": [
+        "block_id",
+        "height",
+        "round",
+        "signatures"
+      ],
+      "properties": {
+        "block_id": {
+          "description": "Block ID",
+          "allOf": [
+            {
+              "$ref": "#/definitions/BlockId"
+            }
+          ]
+        },
+        "height": {
+          "description": "Block height",
+          "type": "string"
+        },
+        "round": {
+          "description": "Round",
+          "type": "integer",
+          "format": "int32"
+        },
+        "signatures": {
+          "description": "Votes",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CommitSig"
+          }
+        }
+      }
+    },
+    "CommitSig": {
+      "type": "object",
+      "required": [
+        "block_id_flag",
+        "timestamp",
+        "validator_address"
+      ],
+      "properties": {
+        "block_id_flag": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "signature": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "validator_address": {
+          "type": "string"
+        }
+      }
+    },
+    "Header": {
+      "type": "object",
+      "required": [
+        "app_hash",
+        "chain_id",
+        "consensus_hash",
+        "data_hash",
+        "evidence_hash",
+        "height",
+        "last_block_id",
+        "last_commit_hash",
+        "last_results_hash",
+        "next_validators_hash",
+        "proposer_address",
+        "time",
+        "validators_hash"
+      ],
+      "properties": {
+        "app_hash": {
+          "description": "State after txs from the previous block",
+          "type": "string"
+        },
+        "chain_id": {
+          "description": "Chain ID",
+          "type": "string"
+        },
+        "consensus_hash": {
+          "description": "Consensus params for the current block",
+          "type": "string"
+        },
+        "data_hash": {
+          "description": "Merkle root of transaction hashes",
+          "type": "string"
+        },
+        "evidence_hash": {
+          "description": "Hash of evidence included in the block",
+          "type": "string"
+        },
+        "height": {
+          "description": "Current block height",
+          "type": "string"
+        },
+        "last_block_id": {
+          "description": "Previous block info",
+          "allOf": [
+            {
+              "$ref": "#/definitions/BlockId"
+            }
+          ]
+        },
+        "last_commit_hash": {
+          "description": "Commit from validators from the last block",
+          "type": "string"
+        },
+        "last_results_hash": {
+          "description": "Root hash of all results from the txs from the previous block",
+          "type": "string"
+        },
+        "next_validators_hash": {
+          "description": "Validators for the next block",
+          "type": "string"
+        },
+        "proposer_address": {
+          "description": "Original proposer of the block",
+          "type": "string"
+        },
+        "time": {
+          "description": "Current timestamp",
+          "type": "string"
+        },
+        "validators_hash": {
+          "description": "Validators for the current block",
+          "type": "string"
+        },
+        "version": {
+          "description": "Header version",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Version"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "LightBlock": {
+      "type": "object",
+      "required": [
+        "signed_header",
+        "validators"
+      ],
+      "properties": {
+        "signed_header": {
+          "$ref": "#/definitions/SignedHeader"
+        },
+        "validators": {
+          "$ref": "#/definitions/Validators"
+        }
+      }
+    },
+    "PartSetHeader": {
+      "description": "Block parts header",
+      "type": "object",
+      "required": [
+        "hash",
+        "total"
+      ],
+      "properties": {
+        "hash": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
+    "PublicKey": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "tendermint/PubKeyEd25519"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "SignedHeader": {
+      "type": "object",
+      "required": [
+        "commit",
+        "header"
+      ],
+      "properties": {
+        "commit": {
+          "$ref": "#/definitions/Commit"
+        },
+        "header": {
+          "$ref": "#/definitions/Header"
+        }
+      }
+    },
+    "ValidatorInfo": {
+      "type": "object",
+      "required": [
+        "address",
+        "pub_key",
+        "voting_power"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "pub_key": {
+          "$ref": "#/definitions/PublicKey"
+        },
+        "voting_power": {
+          "type": "string"
+        }
+      }
+    },
+    "Validators": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ValidatorInfo"
+      }
+    },
+    "Version": {
+      "type": "object",
+      "required": [
+        "block"
+      ],
+      "properties": {
+        "app": {
+          "description": "App version",
+          "default": "0",
+          "type": "string"
+        },
+        "block": {
+          "description": "Block version",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

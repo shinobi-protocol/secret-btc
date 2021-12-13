@@ -1,0 +1,391 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HandleMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "setup"
+      ],
+      "properties": {
+        "setup": {
+          "type": "object",
+          "required": [
+            "config"
+          ],
+          "properties": {
+            "config": {
+              "$ref": "#/definitions/Config"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "add_events"
+      ],
+      "properties": {
+        "add_events": {
+          "type": "object",
+          "required": [
+            "events"
+          ],
+          "properties": {
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": [
+                  {
+                    "$ref": "#/definitions/HumanAddr"
+                  },
+                  {
+                    "$ref": "#/definitions/Event"
+                  }
+                ],
+                "maxItems": 2,
+                "minItems": 2
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "create_viewing_key"
+      ],
+      "properties": {
+        "create_viewing_key": {
+          "type": "object",
+          "required": [
+            "entropy"
+          ],
+          "properties": {
+            "entropy": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "set_viewing_key"
+      ],
+      "properties": {
+        "set_viewing_key": {
+          "type": "object",
+          "required": [
+            "key"
+          ],
+          "properties": {
+            "key": {
+              "$ref": "#/definitions/ViewingKey"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Config": {
+      "type": "object",
+      "required": [
+        "gateway",
+        "treasury"
+      ],
+      "properties": {
+        "gateway": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "treasury": {
+          "$ref": "#/definitions/ContractReference"
+        }
+      }
+    },
+    "ContractReference": {
+      "type": "object",
+      "required": [
+        "address",
+        "hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "hash": {
+          "type": "string"
+        }
+      }
+    },
+    "Event": {
+      "description": "This enum is used as JSON schema of Query Response.",
+      "anyOf": [
+        {
+          "description": "tag: 0",
+          "type": "object",
+          "required": [
+            "mint_started"
+          ],
+          "properties": {
+            "mint_started": {
+              "$ref": "#/definitions/MintStartedData"
+            }
+          }
+        },
+        {
+          "description": "tag: 1",
+          "type": "object",
+          "required": [
+            "mint_completed"
+          ],
+          "properties": {
+            "mint_completed": {
+              "$ref": "#/definitions/MintCompletedData"
+            }
+          }
+        },
+        {
+          "description": "tag: 2",
+          "type": "object",
+          "required": [
+            "received_from_treasury"
+          ],
+          "properties": {
+            "received_from_treasury": {
+              "$ref": "#/definitions/ReceivedFromTreasuryData"
+            }
+          }
+        },
+        {
+          "description": "tag: 3",
+          "type": "object",
+          "required": [
+            "release_started"
+          ],
+          "properties": {
+            "release_started": {
+              "$ref": "#/definitions/ReleaseStartedData"
+            }
+          }
+        },
+        {
+          "description": "tag: 4",
+          "type": "object",
+          "required": [
+            "release_request_confirmed"
+          ],
+          "properties": {
+            "release_request_confirmed": {
+              "$ref": "#/definitions/ReleaseRequestConfirmedData"
+            }
+          }
+        },
+        {
+          "description": "tag: 5",
+          "type": "object",
+          "required": [
+            "release_completed"
+          ],
+          "properties": {
+            "release_completed": {
+              "$ref": "#/definitions/ReleaseCompletedData"
+            }
+          }
+        },
+        {
+          "description": "tag: 6",
+          "type": "object",
+          "required": [
+            "sent_to_treasury"
+          ],
+          "properties": {
+            "sent_to_treasury": {
+              "$ref": "#/definitions/SentToTreasuryData"
+            }
+          }
+        }
+      ]
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "MintCompletedData": {
+      "type": "object",
+      "required": [
+        "address",
+        "amount",
+        "time",
+        "txid"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "txid": {
+          "type": "string"
+        }
+      }
+    },
+    "MintStartedData": {
+      "type": "object",
+      "required": [
+        "address",
+        "time"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "ReceivedFromTreasuryData": {
+      "type": "object",
+      "required": [
+        "amount",
+        "time"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "ReleaseCompletedData": {
+      "type": "object",
+      "required": [
+        "fee_per_vb",
+        "request_key",
+        "time",
+        "txid"
+      ],
+      "properties": {
+        "fee_per_vb": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "request_key": {
+          "$ref": "#/definitions/RequestKey"
+        },
+        "time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "txid": {
+          "type": "string"
+        }
+      }
+    },
+    "ReleaseRequestConfirmedData": {
+      "type": "object",
+      "required": [
+        "block_height",
+        "request_key",
+        "time",
+        "txid"
+      ],
+      "properties": {
+        "block_height": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "request_key": {
+          "$ref": "#/definitions/RequestKey"
+        },
+        "time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "txid": {
+          "type": "string"
+        }
+      }
+    },
+    "ReleaseStartedData": {
+      "type": "object",
+      "required": [
+        "amount",
+        "request_key",
+        "time"
+      ],
+      "properties": {
+        "amount": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "request_key": {
+          "$ref": "#/definitions/RequestKey"
+        },
+        "time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "RequestKey": {
+      "description": "Bitcoin withdrawal request key. It is sha256 hash of 'requester address + utxo + pseudorandom bytes'.\n\n[IMPORTANT] It must be unpredictable. It must not leak any information about the used pseudorandom bytes and utxo at generation process.\n\nThe request key is provided to the requseter as the proof of the request, in the form of the response of the request transaction. Therefore, the request key is published to the out of the contract. At the claim phase, the requester send the request key to the contract so that the contract can verify the request.",
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint8",
+        "minimum": 0.0
+      },
+      "maxItems": 32,
+      "minItems": 32
+    },
+    "SentToTreasuryData": {
+      "type": "object",
+      "required": [
+        "amount",
+        "time"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "Uint128": {
+      "type": "string"
+    },
+    "ViewingKey": {
+      "type": "string"
+    }
+  }
+}

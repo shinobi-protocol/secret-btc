@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryAnswer",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "block_header"
+      ],
+      "properties": {
+        "block_header": {
+          "type": "object",
+          "required": [
+            "header"
+          ],
+          "properties": {
+            "header": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "best_header_hash"
+      ],
+      "properties": {
+        "best_header_hash": {
+          "type": "object",
+          "required": [
+            "hash"
+          ],
+          "properties": {
+            "hash": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/Config"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "verify_merkle_proof"
+      ],
+      "properties": {
+        "verify_merkle_proof": {
+          "type": "object",
+          "required": [
+            "success"
+          ],
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "Config": {
+      "description": "Contract Config set at contrat init.",
+      "type": "object",
+      "required": [
+        "bitcoin_network",
+        "confirmation"
+      ],
+      "properties": {
+        "bitcoin_network": {
+          "description": "\"bitcoin\" | \"testnet\" | 'regtest\"",
+          "type": "string"
+        },
+        "confirmation": {
+          "description": "minimum block needed for tx confirmed",
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        }
+      }
+    }
+  }
+}

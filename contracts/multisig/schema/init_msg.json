@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InitMsg",
+  "type": "object",
+  "required": [
+    "config"
+  ],
+  "properties": {
+    "config": {
+      "$ref": "#/definitions/Config"
+    }
+  },
+  "definitions": {
+    "Config": {
+      "type": "object",
+      "required": [
+        "required",
+        "signers"
+      ],
+      "properties": {
+        "required": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "signers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/HumanAddr"
+          }
+        }
+      }
+    },
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}

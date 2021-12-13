@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HandleAnswer",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "create_viewing_key"
+      ],
+      "properties": {
+        "create_viewing_key": {
+          "type": "object",
+          "required": [
+            "key"
+          ],
+          "properties": {
+            "key": {
+              "$ref": "#/definitions/ViewingKey"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "request_mint_address"
+      ],
+      "properties": {
+        "request_mint_address": {
+          "type": "object",
+          "required": [
+            "mint_address"
+          ],
+          "properties": {
+            "mint_address": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "release_incorrect_amount_b_t_c"
+      ],
+      "properties": {
+        "release_incorrect_amount_b_t_c": {
+          "type": "object",
+          "required": [
+            "tx"
+          ],
+          "properties": {
+            "tx": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "claim_released_btc"
+      ],
+      "properties": {
+        "claim_released_btc": {
+          "type": "object",
+          "required": [
+            "tx"
+          ],
+          "properties": {
+            "tx": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "request_release_btc"
+      ],
+      "properties": {
+        "request_release_btc": {
+          "type": "object",
+          "required": [
+            "request_key"
+          ],
+          "properties": {
+            "request_key": {
+              "$ref": "#/definitions/RequestKey"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "RequestKey": {
+      "description": "Bitcoin withdrawal request key. It is sha256 hash of 'requester address + utxo + pseudorandom bytes'.\n\n[IMPORTANT] It must be unpredictable. It must not leak any information about the used pseudorandom bytes and utxo at generation process.\n\nThe request key is provided to the requseter as the proof of the request, in the form of the response of the request transaction. Therefore, the request key is published to the out of the contract. At the claim phase, the requester send the request key to the contract so that the contract can verify the request.",
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint8",
+        "minimum": 0.0
+      },
+      "maxItems": 32,
+      "minItems": 32
+    },
+    "ViewingKey": {
+      "type": "string"
+    }
+  }
+}

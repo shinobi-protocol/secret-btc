@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HandleAnswer",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "create_viewing_key"
+      ],
+      "properties": {
+        "create_viewing_key": {
+          "type": "object",
+          "required": [
+            "key"
+          ],
+          "properties": {
+            "key": {
+              "$ref": "#/definitions/ViewingKey"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "ViewingKey": {
+      "type": "string"
+    }
+  }
+}

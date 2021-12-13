@@ -1,0 +1,34 @@
+name: Client
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "client/**/*.ts"
+      - "client/**/*.tsx"
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - "client/**/*.ts"
+      - "client/**/*.tsx"
+jobs:
+  client-code-test:
+    name: Build and Test Client Codes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [16.x]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: git submodule update --init
+      - run: cd client/sbtc-js && yarn && yarn build && yarn test && yarn link
+      - run: cd client/shuriken-node && yarn && yarn build && yarn link
+      - run: cd integration-test && yarn && yarn build && yarn test
