@@ -1,20 +1,70 @@
 use crate::Canonicalize;
-use cosmwasm_std::{Api, CanonicalAddr, CosmosMsg, HumanAddr, StdError, StdResult};
+use cosmwasm_std::{
+    Api, Binary, CanonicalAddr, Coin, CosmosMsg, HumanAddr, StdError, StdResult, WasmMsg,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug, PartialEq, Clone)]
+pub struct Transaction {
+    pub contract_addr: HumanAddr,
+    pub callback_code_hash: String,
+    pub msg: Binary,
+    pub send: Vec<Coin>,
+}
+
+impl From<Transaction> for CosmosMsg {
+    fn from(from: Transaction) -> CosmosMsg {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: from.contract_addr,
+            callback_code_hash: from.callback_code_hash,
+            msg: from.msg,
+            send: from.send,
+        })
+    }
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug, PartialEq)]
+pub struct CanonicalTransaction {
+    pub contract_addr: CanonicalAddr,
+    pub callback_code_hash: String,
+    pub msg: Binary,
+    pub send: Vec<Coin>,
+}
+
+impl Canonicalize for Transaction {
+    type Canonicalized = CanonicalTransaction;
+    fn into_canonical<A: Api>(self, api: &A) -> StdResult<CanonicalTransaction> {
+        Ok(CanonicalTransaction {
+            contract_addr: self.contract_addr.into_canonical(api)?,
+            callback_code_hash: self.callback_code_hash,
+            msg: self.msg,
+            send: self.send,
+        })
+    }
+    fn from_canonical<A: Api>(canonical: Self::Canonicalized, api: &A) -> StdResult<Self> {
+        Ok(Self {
+            contract_addr: HumanAddr::from_canonical(canonical.contract_addr, api)?,
+            callback_code_hash: canonical.callback_code_hash,
+            msg: canonical.msg,
+            send: canonical.send,
+        })
+    }
+}
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, PartialEq)]
 pub struct TransactionStatus {
-    pub msg: CosmosMsg,
+    pub transaction: Transaction,
     pub config: Config,
-    pub signed_by: Vec<usize>,
+    pub signed_by: Vec<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CanonicalTransactionStatus {
-    pub msg: CosmosMsg,
+    pub transaction: CanonicalTransaction,
     pub config: CanonicalConfig,
-    pub signed_by: Vec<usize>,
+    pub signed_by: Vec<u32>,
 }
 
 impl TransactionStatus {
@@ -32,6 +82,7 @@ impl TransactionStatus {
             .iter_mut()
             .position(|item| item == signer)
         {
+            let position = position.try_into().unwrap();
             if self.signed_by.contains(&position) {
                 return Err(StdError::generic_err("already signed"));
             }
@@ -47,14 +98,14 @@ impl Canonicalize for TransactionStatus {
     type Canonicalized = CanonicalTransactionStatus;
     fn into_canonical<A: Api>(self, api: &A) -> StdResult<CanonicalTransactionStatus> {
         Ok(CanonicalTransactionStatus {
-            msg: self.msg,
+            transaction: self.transaction.into_canonical(api)?,
             config: self.config.into_canonical(api)?,
             signed_by: self.signed_by,
         })
     }
     fn from_canonical<A: Api>(canonical: Self::Canonicalized, api: &A) -> StdResult<Self> {
         Ok(Self {
-            msg: canonical.msg,
+            transaction: Transaction::from_canonical(canonical.transaction, api)?,
             config: Config::from_canonical(canonical.config, api)?,
             signed_by: canonical.signed_by,
         })
@@ -113,7 +164,7 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     ChangeConfig { config: Config },
-    SubmitTransaction { msg: CosmosMsg },
+    SubmitTransaction { transaction: Transaction },
     SignTransaction { transaction_id: u32 },
 }
 
@@ -145,13 +196,13 @@ mod test {
 
     fn transaction_status() -> TransactionStatus {
         TransactionStatus {
-            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+            transaction: Transaction {
                 contract_addr: "contract_addr".into(),
 
                 callback_code_hash: "callback_code_hash".into(),
                 msg: Binary::from(&[0, 1, 2]),
                 send: vec![Coin::new(100u128, "uscrt")],
-            }),
+            },
             config: Config {
                 signers: vec!["signer1".into(), "signer2".into(), "signer3".into()],
                 required: 2,

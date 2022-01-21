@@ -1,13 +1,17 @@
 use crate::config::Config;
 use crate::ibm::{fee, reward, split_reward};
 use crate::msg::{CustomHandleMsg, CustomQueryAnswer, CustomQueryMsg, InitMsg};
-use crate::state::{read_config, read_total_minted, write_config, write_total_minted};
+use crate::state::{
+    read_config, read_reward_tracker, read_total_minted, write_config, write_reward_tracker,
+    write_total_minted, RewardType, ShurikenRewardTracker,
+};
 use cosmwasm_std::{
-    to_binary, Api, Env, Extern, HandleResponse, HandleResult, InitResponse, InitResult, Querier,
-    QueryResult, ReadonlyStorage, StdError, StdResult, Storage, Uint128,
+    to_binary, Api, Env, Extern, HandleResponse, HandleResult, HumanAddr, InitResponse, InitResult,
+    Querier, QueryResult, ReadonlyStorage, StdError, StdResult, Storage, Uint128,
 };
 use secret_toolkit::snip20;
 use secret_toolkit::utils::{pad_handle_result, HandleCallback};
+use serde::{Deserialize, Serialize};
 use shared_types::{finance_admin, gateway, shuriken, treasury, BLOCK_SIZE};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -16,6 +20,22 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     msg: InitMsg,
 ) -> InitResult {
     write_config(&mut deps.storage, &deps.api, msg.config)?;
+    write_reward_tracker(
+        &mut deps.storage,
+        &ShurikenRewardTracker {
+            base_reward: msg.bitcoin_spv_base_reward.0,
+            ..Default::default()
+        },
+        RewardType::BitcoinSPV,
+    )?;
+    write_reward_tracker(
+        &mut deps.storage,
+        &ShurikenRewardTracker {
+            base_reward: msg.sfps_base_reward.0,
+            ..Default::default()
+        },
+        RewardType::SFPS,
+    )?;
     Ok(InitResponse::default())
 }
 
@@ -43,149 +63,193 @@ fn check_sender_is_shuriken(config: &Config, env: &Env) -> StdResult<()> {
     }
 }
 
+// secret_toolkit::snip20 does not have ChangeAdmin Msg
+#[derive(Deserialize, Serialize, Clone, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Snip20HandleMsg {
+    ChangeAdmin {
+        address: HumanAddr,
+        padding: Option<String>,
+    },
+}
+
+impl HandleCallback for Snip20HandleMsg {
+    const BLOCK_SIZE: usize = BLOCK_SIZE;
+}
+
 pub fn handle<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: finance_admin::HandleMsg<CustomHandleMsg>,
 ) -> HandleResult {
-    let response =
-        match msg {
-            finance_admin::HandleMsg::Custom { custom_msg } => match custom_msg {
-                CustomHandleMsg::TransferOwnership { owner } => {
-                    let mut config = read_config(&deps.storage, &deps.api)?;
-                    check_sender_is_owner(&config, &env)?;
-                    config.owner = owner;
-                    write_config(&mut deps.storage, &deps.api, config)?;
-                    Ok(HandleResponse::default())
-                }
-            },
-            finance_admin::HandleMsg::Migrate { new_finance_admin } => {
-                let config = read_config(&deps.storage, &deps.api)?;
+    let response = match msg {
+        finance_admin::HandleMsg::Custom { custom_msg } => match custom_msg {
+            CustomHandleMsg::TransferOwnership { owner } => {
+                let mut config = read_config(&deps.storage, &deps.api)?;
                 check_sender_is_owner(&config, &env)?;
-                let messages =
-                    vec![
-                        treasury::HandleMsg::TransferOwnership {
-                            owner: new_finance_admin.address.clone(),
-                        }
-                        .to_cosmos_msg(
-                            config.treasury.hash,
-                            config.treasury.address,
-                            None,
-                        )?,
-                        gateway::HandleMsg::ChangeFinanceAdmin {
-                            new_finance_admin: new_finance_admin.clone(),
-                        }
-                        .to_cosmos_msg(
-                            config.gateway.hash,
-                            config.gateway.address,
-                            None,
-                        )?,
-                        shuriken::HandleMsg::ChangeFinanceAdmin { new_finance_admin }
-                            .to_cosmos_msg(config.shuriken.hash, config.shuriken.address, None)?,
-                    ];
-                Ok(HandleResponse {
-                    messages,
-                    log: vec![],
-                    data: None,
-                })
+                config.owner = owner;
+                write_config(&mut deps.storage, &deps.api, config)?;
+                Ok(HandleResponse::default())
             }
-            finance_admin::HandleMsg::SendMintReward {
-                minter,
-                sbtc_mint_amount,
-                sbtc_total_supply: _,
-            } => {
-                let config = read_config(&deps.storage, &deps.api)?;
-                check_sender_is_gateway(&config, &env)?;
-                let (minter_reward, developer_reward, total_minted) =
-                    calc_mint_rewards(&deps.storage, sbtc_mint_amount);
-                write_total_minted(&mut deps.storage, total_minted);
-                let operations = vec![
-                    treasury::Operation::Send {
-                        to: minter,
-                        amount: minter_reward,
-                    },
-                    treasury::Operation::Send {
-                        to: config.developer_address,
-                        amount: developer_reward,
-                    },
-                ];
-                let message = treasury::HandleMsg::Operate { operations }.to_cosmos_msg(
+        },
+        finance_admin::HandleMsg::Migrate { new_finance_admin } => {
+            let config = read_config(&deps.storage, &deps.api)?;
+            check_sender_is_owner(&config, &env)?;
+            let messages = vec![
+                treasury::HandleMsg::TransferOwnership {
+                    owner: new_finance_admin.address.clone(),
+                }
+                .to_cosmos_msg(
                     config.treasury.hash,
                     config.treasury.address,
                     None,
-                )?;
-                Ok(HandleResponse {
-                    messages: vec![message],
-                    log: vec![],
-                    data: None,
-                })
-            }
-            finance_admin::HandleMsg::ReceiveReleaseFee {
-                releaser,
-                sbtc_release_amount,
-                sbtc_total_supply: _,
-            } => {
-                let config = read_config(&deps.storage, &deps.api)?;
-                check_sender_is_gateway(&config, &env)?;
-                let fee = fee(sbtc_release_amount.into());
-                let operations = vec![treasury::Operation::ReceiveFrom {
-                    from: releaser,
-                    amount: fee.into(),
-                }];
-                let message = treasury::HandleMsg::Operate { operations }.to_cosmos_msg(
-                    config.treasury.hash,
-                    config.treasury.address,
+                )?,
+                gateway::HandleMsg::ChangeFinanceAdmin {
+                    new_finance_admin: new_finance_admin.clone(),
+                }
+                .to_cosmos_msg(
+                    config.gateway.hash,
+                    config.gateway.address,
                     None,
-                )?;
-                Ok(HandleResponse {
-                    messages: vec![message],
-                    log: vec![],
-                    data: None,
-                })
-            }
-            finance_admin::HandleMsg::MintBitcoinSPVReward {
-                executer,
-                best_height,
-            } => {
-                // TODO implement reward calculation
-                let config = read_config(&deps.storage, &deps.api)?;
-                check_sender_is_shuriken(&config, &env)?;
-                let message = snip20::mint_msg(
-                    executer,
-                    (best_height as u64).into(),
+                )?,
+                shuriken::HandleMsg::ChangeFinanceAdmin {
+                    new_finance_admin: new_finance_admin.clone(),
+                }
+                .to_cosmos_msg(
+                    config.shuriken.hash,
+                    config.shuriken.address,
+                    None,
+                )?,
+                snip20::set_minters_msg(
+                    vec![new_finance_admin.address.clone()],
                     None,
                     BLOCK_SIZE,
-                    config.snb.hash,
-                    config.snb.address,
-                )?;
-                Ok(HandleResponse {
-                    messages: vec![message],
-                    log: vec![],
-                    data: None,
-                })
-            }
-            finance_admin::HandleMsg::MintSFPSReward {
+                    config.snb.hash.clone(),
+                    config.snb.address.clone(),
+                )?,
+                Snip20HandleMsg::ChangeAdmin {
+                    address: new_finance_admin.address,
+                    padding: None,
+                }
+                .to_cosmos_msg(config.snb.hash, config.snb.address, None)?,
+            ];
+            Ok(HandleResponse {
+                messages,
+                log: vec![],
+                data: None,
+            })
+        }
+        finance_admin::HandleMsg::SendMintReward {
+            minter,
+            sbtc_mint_amount,
+            sbtc_total_supply: _,
+        } => {
+            let config = read_config(&deps.storage, &deps.api)?;
+            check_sender_is_gateway(&config, &env)?;
+            let (minter_reward, developer_reward, total_minted) =
+                calc_mint_rewards(&deps.storage, sbtc_mint_amount);
+            write_total_minted(&mut deps.storage, total_minted);
+            let operations = vec![
+                treasury::Operation::Send {
+                    to: minter,
+                    amount: minter_reward,
+                },
+                treasury::Operation::Send {
+                    to: config.developer_address,
+                    amount: developer_reward,
+                },
+            ];
+            let message = treasury::HandleMsg::Operate { operations }.to_cosmos_msg(
+                config.treasury.hash,
+                config.treasury.address,
+                None,
+            )?;
+            Ok(HandleResponse {
+                messages: vec![message],
+                log: vec![],
+                data: None,
+            })
+        }
+        finance_admin::HandleMsg::ReceiveReleaseFee {
+            releaser,
+            sbtc_release_amount,
+            sbtc_total_supply: _,
+        } => {
+            let config = read_config(&deps.storage, &deps.api)?;
+            check_sender_is_gateway(&config, &env)?;
+            let fee = fee(sbtc_release_amount.into());
+            let operations = vec![treasury::Operation::ReceiveFrom {
+                from: releaser,
+                amount: fee.into(),
+            }];
+            let message = treasury::HandleMsg::Operate { operations }.to_cosmos_msg(
+                config.treasury.hash,
+                config.treasury.address,
+                None,
+            )?;
+            Ok(HandleResponse {
+                messages: vec![message],
+                log: vec![],
+                data: None,
+            })
+        }
+        finance_admin::HandleMsg::MintBitcoinSPVReward {
+            executer,
+            best_height,
+            best_block_time,
+        } => {
+            let config = read_config(&deps.storage, &deps.api)?;
+            check_sender_is_shuriken(&config, &env)?;
+            let mut reward_tracker = read_reward_tracker(&deps.storage, RewardType::BitcoinSPV)?;
+            let reward = reward_tracker.reward(
+                best_height.into(),
+                (env.block.time as u128).saturating_sub(best_block_time as u128),
+            );
+            write_reward_tracker(&mut deps.storage, &reward_tracker, RewardType::BitcoinSPV)?;
+            let message = snip20::mint_msg(
                 executer,
-                best_height,
-            } => {
-                // TODO implement reward calculation
-                let config = read_config(&deps.storage, &deps.api)?;
-                check_sender_is_shuriken(&config, &env)?;
-                let message = snip20::mint_msg(
-                    executer,
-                    best_height.into(),
-                    None,
-                    BLOCK_SIZE,
-                    config.snb.hash,
-                    config.snb.address,
-                )?;
-                Ok(HandleResponse {
-                    messages: vec![message],
-                    log: vec![],
-                    data: None,
-                })
-            }
-        };
+                reward.into(),
+                None,
+                None,
+                BLOCK_SIZE,
+                config.snb.hash,
+                config.snb.address,
+            )?;
+            Ok(HandleResponse {
+                messages: vec![message],
+                log: vec![],
+                data: None,
+            })
+        }
+        finance_admin::HandleMsg::MintSFPSReward {
+            executer,
+            best_height,
+            best_block_time,
+        } => {
+            let config = read_config(&deps.storage, &deps.api)?;
+            check_sender_is_shuriken(&config, &env)?;
+            let mut reward_tracker = read_reward_tracker(&deps.storage, RewardType::SFPS)?;
+            let reward = reward_tracker.reward(
+                best_height.into(),
+                (env.block.time - best_block_time).into(),
+            );
+            write_reward_tracker(&mut deps.storage, &reward_tracker, RewardType::SFPS)?;
+            let message = snip20::mint_msg(
+                executer,
+                reward.into(),
+                None,
+                None,
+                BLOCK_SIZE,
+                config.snb.hash,
+                config.snb.address,
+            )?;
+            Ok(HandleResponse {
+                messages: vec![message],
+                log: vec![],
+                data: None,
+            })
+        }
+    };
     pad_handle_result(response, BLOCK_SIZE)
 }
 
@@ -212,7 +276,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
             let config = read_config(&deps.storage, &deps.api)?;
             let (minter_reward, developer_reward, _) =
                 calc_mint_rewards(&deps.storage, sbtc_mint_amount);
-            let answer: finance_admin::QueryAnswer = vec![
+            let answer = finance_admin::QueryAnswer::MintReward(vec![
                 treasury::Operation::Send {
                     to: minter,
                     amount: minter_reward,
@@ -221,7 +285,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
                     to: config.developer_address,
                     amount: developer_reward,
                 },
-            ];
+            ]);
             to_binary(&answer)
         }
         finance_admin::QueryMsg::ReleaseFee {
@@ -230,11 +294,24 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
             sbtc_total_supply: _,
         } => {
             let fee = fee(sbtc_release_amount.into());
-            let answer: finance_admin::QueryAnswer = vec![treasury::Operation::ReceiveFrom {
-                from: releaser,
-                amount: fee.into(),
-            }];
+            let answer =
+                finance_admin::QueryAnswer::ReleaseFee(vec![treasury::Operation::ReceiveFrom {
+                    from: releaser,
+                    amount: fee.into(),
+                }]);
             to_binary(&answer)
+        }
+        finance_admin::QueryMsg::LatestBitcoinSPVReward {} => {
+            let reward_tracker = read_reward_tracker(&deps.storage, RewardType::BitcoinSPV)?;
+            to_binary(&finance_admin::QueryAnswer::LatestBitcoinSPVReward(
+                reward_tracker.base_reward.into(),
+            ))
+        }
+        finance_admin::QueryMsg::LatestSFPSReward {} => {
+            let reward_tracker = read_reward_tracker(&deps.storage, RewardType::SFPS)?;
+            to_binary(&finance_admin::QueryAnswer::LatestSFPSReward(
+                reward_tracker.base_reward.into(),
+            ))
         }
     }
 }
@@ -261,6 +338,7 @@ mod test {
     use contract_test_utils::assert_handle_response_message;
     use cosmwasm_std::testing::*;
     use shared_types::ContractReference;
+    use std::convert::TryInto;
 
     fn init_helper() -> Extern<MockStorage, MockApi, MockQuerier> {
         let mut deps = mock_dependencies(20, &[]);
@@ -288,6 +366,8 @@ mod test {
                     },
                     developer_address: "developer".into(),
                 },
+                sfps_base_reward: 1000u128.into(),
+                bitcoin_spv_base_reward: 1000u128.into(),
             },
         )
         .unwrap();
@@ -345,9 +425,25 @@ mod test {
                 }
                 .to_cosmos_msg("gateway_hash".into(), "gateway_address".into(), None,)
                 .unwrap(),
-                shuriken::HandleMsg::ChangeFinanceAdmin { new_finance_admin }
-                    .to_cosmos_msg("shuriken_hash".into(), "shuriken_address".into(), None,)
-                    .unwrap(),
+                shuriken::HandleMsg::ChangeFinanceAdmin {
+                    new_finance_admin: new_finance_admin.clone()
+                }
+                .to_cosmos_msg("shuriken_hash".into(), "shuriken_address".into(), None,)
+                .unwrap(),
+                snip20::set_minters_msg(
+                    vec![new_finance_admin.address.clone()],
+                    None,
+                    BLOCK_SIZE,
+                    "snb_hash".into(),
+                    "snb_address".into()
+                )
+                .unwrap(),
+                Snip20HandleMsg::ChangeAdmin {
+                    address: new_finance_admin.address.clone(),
+                    padding: None
+                }
+                .to_cosmos_msg("snb_hash".into(), "snb_address".into(), None)
+                .unwrap()
             ]
         );
     }
@@ -489,7 +585,8 @@ mod test {
         let mut deps = init_helper();
         let handle_msg = finance_admin::HandleMsg::<CustomHandleMsg>::MintBitcoinSPVReward {
             executer: "executer".into(),
-            best_height: 1000,
+            best_height: 1,
+            best_block_time: mock_env("", &[]).block.time.try_into().unwrap(),
         };
         assert_eq!(
             handle(
@@ -500,19 +597,93 @@ mod test {
             .unwrap_err(),
             StdError::generic_err("message sender is not shuriken")
         );
-        let response = handle(&mut deps, mock_env("shuriken_address", &[]), handle_msg).unwrap();
+        let response = handle(
+            &mut deps,
+            mock_env("shuriken_address", &[]),
+            handle_msg.clone(),
+        )
+        .unwrap();
         assert_eq!(response.messages.len(), 1);
         assert_eq!(
             response.messages[0],
             snip20::mint_msg(
                 "executer".into(),
-                1000u64.into(),
+                990u64.into(),
+                None,
                 None,
                 BLOCK_SIZE,
                 "snb_hash".into(),
                 "snb_address".into(),
             )
             .unwrap(),
+        );
+        assert_eq!(
+            query(
+                &deps,
+                finance_admin::QueryMsg::<CustomQueryMsg>::LatestBitcoinSPVReward {}
+            )
+            .unwrap(),
+            to_binary(&finance_admin::QueryAnswer::LatestBitcoinSPVReward(
+                Uint128(990)
+            ))
+            .unwrap()
+        );
+        let response = handle(&mut deps, mock_env("shuriken_address", &[]), handle_msg).unwrap();
+        assert_eq!(response.messages.len(), 1);
+        assert_eq!(
+            response.messages[0],
+            snip20::mint_msg(
+                "executer".into(),
+                495u64.into(),
+                None,
+                None,
+                BLOCK_SIZE,
+                "snb_hash".into(),
+                "snb_address".into(),
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            query(
+                &deps,
+                finance_admin::QueryMsg::<CustomQueryMsg>::LatestBitcoinSPVReward {}
+            )
+            .unwrap(),
+            to_binary(&finance_admin::QueryAnswer::LatestBitcoinSPVReward(
+                Uint128(990)
+            ))
+            .unwrap()
+        );
+        let handle_msg = finance_admin::HandleMsg::<CustomHandleMsg>::MintBitcoinSPVReward {
+            executer: "executer".into(),
+            best_height: 2,
+            best_block_time: (mock_env("", &[]).block.time - 3660).try_into().unwrap(),
+        };
+        let response = handle(&mut deps, mock_env("shuriken_address", &[]), handle_msg).unwrap();
+        assert_eq!(response.messages.len(), 1);
+        assert_eq!(
+            response.messages[0],
+            snip20::mint_msg(
+                "executer".into(),
+                1039u64.into(),
+                None,
+                None,
+                BLOCK_SIZE,
+                "snb_hash".into(),
+                "snb_address".into(),
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            query(
+                &deps,
+                finance_admin::QueryMsg::<CustomQueryMsg>::LatestBitcoinSPVReward {}
+            )
+            .unwrap(),
+            to_binary(&finance_admin::QueryAnswer::LatestBitcoinSPVReward(
+                Uint128(1039)
+            ))
+            .unwrap()
         );
     }
 
@@ -521,7 +692,8 @@ mod test {
         let mut deps = init_helper();
         let handle_msg = finance_admin::HandleMsg::<CustomHandleMsg>::MintSFPSReward {
             executer: "executer".into(),
-            best_height: 1000,
+            best_height: 1,
+            best_block_time: mock_env("", &[]).block.time,
         };
         assert_eq!(
             handle(
@@ -532,19 +704,89 @@ mod test {
             .unwrap_err(),
             StdError::generic_err("message sender is not shuriken")
         );
-        let response = handle(&mut deps, mock_env("shuriken_address", &[]), handle_msg).unwrap();
+        let response = handle(
+            &mut deps,
+            mock_env("shuriken_address", &[]),
+            handle_msg.clone(),
+        )
+        .unwrap();
         assert_eq!(response.messages.len(), 1);
         assert_eq!(
             response.messages[0],
             snip20::mint_msg(
                 "executer".into(),
-                1000u64.into(),
+                990u64.into(),
+                None,
                 None,
                 BLOCK_SIZE,
                 "snb_hash".into(),
                 "snb_address".into(),
             )
             .unwrap(),
+        );
+        assert_eq!(
+            query(
+                &deps,
+                finance_admin::QueryMsg::<CustomQueryMsg>::LatestSFPSReward {}
+            )
+            .unwrap(),
+            to_binary(&finance_admin::QueryAnswer::LatestSFPSReward(Uint128(990))).unwrap()
+        );
+        let response = handle(&mut deps, mock_env("shuriken_address", &[]), handle_msg).unwrap();
+        assert_eq!(response.messages.len(), 1);
+        assert_eq!(
+            response.messages[0],
+            snip20::mint_msg(
+                "executer".into(),
+                495u64.into(),
+                None,
+                None,
+                BLOCK_SIZE,
+                "snb_hash".into(),
+                "snb_address".into(),
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            query(
+                &deps,
+                finance_admin::QueryMsg::<CustomQueryMsg>::LatestSFPSReward {}
+            )
+            .unwrap(),
+            to_binary(&finance_admin::QueryAnswer::LatestSFPSReward(Uint128(990))).unwrap()
+        );
+        let handle_msg = finance_admin::HandleMsg::<CustomHandleMsg>::MintSFPSReward {
+            executer: "executer".into(),
+            best_height: 2,
+            best_block_time: mock_env("", &[]).block.time - 3660u64,
+        };
+        let response = handle(
+            &mut deps,
+            mock_env("shuriken_address", &[]),
+            handle_msg.clone(),
+        )
+        .unwrap();
+        assert_eq!(response.messages.len(), 1);
+        assert_eq!(
+            response.messages[0],
+            snip20::mint_msg(
+                "executer".into(),
+                1039u64.into(),
+                None,
+                None,
+                BLOCK_SIZE,
+                "snb_hash".into(),
+                "snb_address".into(),
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            query(
+                &deps,
+                finance_admin::QueryMsg::<CustomQueryMsg>::LatestSFPSReward {}
+            )
+            .unwrap(),
+            to_binary(&finance_admin::QueryAnswer::LatestSFPSReward(Uint128(1039))).unwrap()
         );
     }
 }

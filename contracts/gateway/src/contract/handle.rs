@@ -7,14 +7,18 @@ use crate::state::bitcoin_utxo::{
 use crate::state::config::{read_config, write_config};
 use crate::state::mint_key::{read_mint_key, remove_mint_key, write_mint_key};
 use crate::state::prefix::{PREFIX_PRNG, PREFIX_VIEW_KEY};
+use crate::state::suspension_switch::set_suspension_switch;
+use crate::state::suspension_switch::suspension_switch;
 use bitcoin::blockdata::opcodes::all;
 use bitcoin::blockdata::script::Builder;
 use bitcoin::blockdata::transaction::{SigHashType, Transaction, TxIn, TxOut};
 use bitcoin::consensus::encode::{deserialize, serialize};
 use bitcoin::secp256k1::{sign, Message, SecretKey};
-use bitcoin::util::address::{Address, AddressType, Payload};
+use bitcoin::util::address::{Address, Payload};
 use bitcoin::util::sighash::SigHashCache;
+use bitcoin::VarInt;
 use bitcoin::{OutPoint, PrivateKey, PublicKey, Script};
+use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     to_binary, Api, Binary, Env, Extern, HandleResponse, Querier, StdResult, Storage,
 };
@@ -34,10 +38,14 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
+    let suspension_switch = suspension_switch(&deps.storage)?;
     let result = match msg {
         HandleMsg::CreateViewingKey { entropy, .. } => try_create_key(deps, env, entropy),
         HandleMsg::SetViewingKey { key, .. } => try_set_key(deps, env, key),
         HandleMsg::RequestMintAddress { entropy, .. } => {
+            if suspension_switch.request_mint_address {
+                return Err(Error::contract_err("request mint address is being suspended").into());
+            }
             try_request_mint_address(deps, env, entropy)
         }
         HandleMsg::VerifyMintTx {
@@ -45,7 +53,12 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             tx,
             merkle_proof,
             ..
-        } => try_verify_mint_tx(deps, env, height, tx, merkle_proof),
+        } => {
+            if suspension_switch.verify_mint_tx {
+                return Err(Error::contract_err("verify mint tx is being suspended").into());
+            }
+            try_verify_mint_tx(deps, env, height, tx, merkle_proof)
+        }
         HandleMsg::ReleaseIncorrectAmountBTC {
             height,
             tx,
@@ -53,18 +66,30 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             recipient_address,
             fee_per_vb,
             ..
-        } => try_release_incorrect_amount_btc(
-            deps,
-            env,
-            height,
-            tx,
-            merkle_proof,
-            recipient_address,
-            fee_per_vb,
-        ),
+        } => {
+            if suspension_switch.release_incorrect_amount_btc {
+                return Err(
+                    Error::contract_err("release incorrect amount btc is being suspended").into(),
+                );
+            }
+            try_release_incorrect_amount_btc(
+                deps,
+                env,
+                height,
+                tx,
+                merkle_proof,
+                recipient_address,
+                fee_per_vb,
+            )
+        }
         HandleMsg::RequestReleaseBtc {
             entropy, amount, ..
-        } => try_request_release_btc(deps, env, amount, entropy),
+        } => {
+            if suspension_switch.request_release_btc {
+                return Err(Error::contract_err("request release btc is being suspended").into());
+            }
+            try_request_release_btc(deps, env, amount, entropy)
+        }
         HandleMsg::ClaimReleasedBtc {
             tx_result_proof,
             header_hash_index,
@@ -72,18 +97,40 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             recipient_address,
             fee_per_vb,
             ..
-        } => try_claim_released_btc(
-            deps,
-            env,
-            tx_result_proof,
-            header_hash_index,
-            encryption_key,
-            recipient_address,
-            fee_per_vb,
-        ),
+        } => {
+            if suspension_switch.claim_release_btc {
+                return Err(Error::contract_err("claim release btc is being suspended").into());
+            }
+            try_claim_released_btc(
+                deps,
+                env,
+                tx_result_proof,
+                header_hash_index,
+                encryption_key,
+                recipient_address,
+                fee_per_vb,
+            )
+        }
         HandleMsg::ChangeFinanceAdmin { new_finance_admin } => {
             try_change_finance_admin(deps, env, new_finance_admin)
         }
+        HandleMsg::ChangeOwner { new_owner } => try_change_owner(deps, env, new_owner),
+        HandleMsg::SetSuspensionSwitch { suspension_switch } => {
+            try_set_suspension_switch(deps, env, suspension_switch)
+        }
+        HandleMsg::ReleaseBtcByOwner {
+            tx_value,
+            max_input_length,
+            recipient_address,
+            fee_per_vb,
+        } => try_release_btc_by_owner(
+            deps,
+            env,
+            tx_value,
+            max_input_length,
+            recipient_address,
+            fee_per_vb,
+        ),
     };
     pad_handle_result(result.map_err(|e| e.into()), BLOCK_SIZE)
 }
@@ -256,6 +303,7 @@ fn try_verify_mint_tx<S: Storage, A: Api, Q: Querier>(
                 env.message.sender.clone(),
                 amount.into(),
                 None,
+                None,
                 BLOCK_SIZE,
                 config.sbtc.hash,
                 config.sbtc.address,
@@ -328,7 +376,8 @@ fn try_release_incorrect_amount_btc<S: Storage, A: Api, Q: Querier>(
 
     let tx: Transaction = deserialize::<Transaction>(tx.as_slice())?;
     let txid = tx.txid();
-    let recipient_address = Address::from_str(&recipient_address)?;
+    let release_to = recipient_address;
+    let recipient_address = Address::from_str(&release_to)?;
 
     //
     // Validate that the tx has correct output destination and incorrect value
@@ -348,14 +397,26 @@ fn try_release_incorrect_amount_btc<S: Storage, A: Api, Q: Querier>(
     //  Release Utxo
     //
     let tx = sign_transaction(
-        OutPoint { txid, vout },
+        vec![txin(OutPoint { txid, vout })],
+        vec![priv_key],
         amount,
-        &priv_key,
         fee_per_vb,
         recipient_address,
     )?;
     Ok(HandleResponse {
-        messages: vec![],
+        messages: vec![log::HandleMsg::AddEvents {
+            events: vec![(
+                env.message.sender,
+                log::Event::ReleaseIncorrectAmountBTC(log::event::ReleaseIncorrectAmountBTCData {
+                    time: env.block.time,
+                    amount: amount.into(),
+                    release_from: bitcoin_address.to_string(),
+                    release_to: release_to,
+                    txid: tx.txid().to_string(),
+                }),
+            )],
+        }
+        .to_cosmos_msg(config.log.hash, config.log.address, None)?],
         log: vec![],
         data: Some(to_binary(&HandleAnswer::ReleaseIncorrectAmountBTC {
             tx: Binary::from(serialize(&tx)),
@@ -401,6 +462,7 @@ fn try_request_release_btc<S: Storage, A: Api, Q: Querier>(
             snip20::burn_from_msg(
                 env.message.sender.clone(),
                 amount.into(),
+                None,
                 None,
                 BLOCK_SIZE,
                 config.sbtc.hash,
@@ -463,9 +525,9 @@ fn try_claim_released_btc<S: Storage, A: Api, Q: Querier>(
     let network = query_bitcoin_network(&deps.querier, config.bitcoin_spv)?;
 
     let tx = sign_transaction(
-        requested_utxo.utxo.outpoint(),
+        vec![txin(requested_utxo.utxo.outpoint())],
+        vec![requested_utxo.utxo.priv_key(network)?],
         requested_utxo.value,
-        &requested_utxo.utxo.priv_key(network)?,
         fee_per_vb,
         recipient_address,
     )?;
@@ -505,6 +567,76 @@ fn try_change_finance_admin<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse::default())
 }
 
+fn try_change_owner<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    new_owner: HumanAddr,
+) -> Result<HandleResponse, Error> {
+    let mut config = read_config(&deps.storage, &deps.api)?;
+    if env.message.sender != config.owner {
+        return Err(Error::contract_err("not owner"));
+    }
+    config.owner = new_owner;
+    write_config(&mut deps.storage, config, &deps.api)?;
+    Ok(HandleResponse::default())
+}
+
+fn try_set_suspension_switch<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    suspension_switch: SuspensionSwitch,
+) -> Result<HandleResponse, Error> {
+    let config = read_config(&deps.storage, &deps.api)?;
+    if env.message.sender != config.owner {
+        return Err(Error::contract_err("not owner"));
+    }
+    set_suspension_switch(&mut deps.storage, &suspension_switch)?;
+    Ok(HandleResponse::default())
+}
+
+fn try_release_btc_by_owner<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    tx_value: u64,
+    max_input_length: u64,
+    recipient_address: String,
+    fee_per_vb: u64,
+) -> Result<HandleResponse, Error> {
+    let recipient_address = Address::from_str(&recipient_address)?;
+    let config = read_config(&deps.storage, &deps.api)?;
+    if env.message.sender != config.owner {
+        return Err(Error::contract_err("not owner"));
+    }
+    let network = query_bitcoin_network(&deps.querier, config.bitcoin_spv)?;
+    let mut tx_inputs = Vec::with_capacity(max_input_length as usize);
+    let mut priv_keys = Vec::with_capacity(max_input_length as usize);
+    for _ in 0..max_input_length {
+        let mut utxo_queue = UtxoQueue::from_storage(&mut deps.storage, tx_value);
+        match utxo_queue.dequeue()? {
+            Some(utxo) => {
+                tx_inputs.push(txin(utxo.outpoint()));
+                priv_keys.push(utxo.priv_key(network)?);
+            }
+            None => break,
+        }
+    }
+    let tx = sign_transaction(
+        tx_inputs,
+        priv_keys,
+        tx_value,
+        fee_per_vb,
+        recipient_address,
+    )?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![],
+        data: Some(to_binary(&HandleAnswer::ReleaseBtcByOwner {
+            tx: Binary::from(serialize(&tx)),
+        })?),
+    })
+}
+
 // https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki#Native_P2WPKH
 fn script_code(pub_key: &PublicKey) -> Script {
     Builder::new()
@@ -516,64 +648,84 @@ fn script_code(pub_key: &PublicKey) -> Script {
         .into_script()
 }
 
-fn fee(recipient_address: &Address, fee_per_vb: u64) -> Result<u64, Error> {
-    Ok(vbyte(recipient_address)? * fee_per_vb)
+fn fee(recipient_address: &Address, txin_count: u64, fee_per_vb: u64) -> u64 {
+    vsize(recipient_address, txin_count) * fee_per_vb
 }
 
-// https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki#Transaction_size_calculations
-// https://bitcoin.stackexchange.com/questions/87275/how-to-calculate-segwit-transaction-fee-in-bytes
-// p2wpkh output => 79 vbytes rounding 105 * 3/4 = 78.75 up
-fn vbyte(recipient_address: &Address) -> Result<u64, Error> {
-    Ok(match recipient_address
-        .address_type()
-        .ok_or_else(|| Error::contract_err("unknown recipient address type"))?
-    {
-        AddressType::P2pkh => 34,
-        AddressType::P2sh => 32,
-        AddressType::P2wpkh => 31,
-        AddressType::P2wsh => 43,
-        AddressType::P2tr => 43,
-    } + 79)
+// ceil(weight / 4.0)
+fn vsize(recipient_address: &Address, txin_count: u64) -> u64 {
+    (weight(recipient_address, txin_count) + 3) / 4
+}
+
+// https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki
+// https://github.com/bitcoin/bips/blob/master/bip-0144.mediawiki
+// Return Max Weight of Transaction after signed.
+// Weight of Signature in P2WPKH Witness can be 71 or 72.
+// This function calculates Max Weight as the weight of signature to be 72.
+fn weight(recipient_address: &Address, txin_count: u64) -> u64 {
+    const INPUT_CONSTANT_WEIGHT: u64 = 160; // (Transaction Hash(32) + Output Index(4) + Sequence Number(4)) * 4
+    const P2WPKH_SCRIPT_SIG_WEIGHT: u64 = 4; // (Script Sig Length VarInt(1) + Script Sig(0)) * 4
+    const P2WPKH_WITNESS_WEIGHT: u64 = 108; // Witness Count VarInt(1) + Signature Length VarInt(1) + Signature (71 or 72) + Pubkey Length Varint (1) + pubkey(33)
+    const TX_CONSTANT_WEIGHT: u64 = 34; // (Version(4) + Lock Time(4)) * 4 + Marker(1) + Flag(1)
+    const OUTPUT_CONSTANT_WEIGHT: u64 = 32; // Amount(8) * 4
+    const TXOUT_COUNT_WEIGHT: u64 = 4; // Tx Count VarInt(1) * 4
+
+    let script_pubkey_length = recipient_address.script_pubkey().len() as u64;
+    let input_weight =
+        (INPUT_CONSTANT_WEIGHT + P2WPKH_SCRIPT_SIG_WEIGHT + P2WPKH_WITNESS_WEIGHT) * txin_count;
+    let output_weight = OUTPUT_CONSTANT_WEIGHT
+        + (VarInt(script_pubkey_length).len() as u64 + script_pubkey_length) * 4;
+    let txin_count_weight = VarInt(txin_count).len() as u64 * 4;
+    TX_CONSTANT_WEIGHT + txin_count_weight + input_weight + TXOUT_COUNT_WEIGHT + output_weight
+}
+
+fn txin(outpoint: OutPoint) -> TxIn {
+    TxIn {
+        previous_output: outpoint,
+        sequence: 4294967293, // 0xFFFFFFFF - 2 sequence signals the transaction is considered to have opted in to allowing replacement of itself
+        ..Default::default()
+    }
 }
 
 fn sign_transaction(
-    previous_output: OutPoint,
-    spendable_value: u64,
-    priv_key: &PrivateKey,
+    tx_inputs: Vec<TxIn>,
+    priv_keys: Vec<PrivateKey>,
+    tx_value: u64,
     fee_per_vb: u64,
     recipient_address: Address,
 ) -> Result<Transaction, Error> {
-    let txin = TxIn {
-        previous_output,
-        ..Default::default()
-    };
-    let fee = fee(&recipient_address, fee_per_vb)?;
+    let tx_inputs_size = tx_inputs.len() as u64;
+    let fee = fee(&recipient_address, tx_inputs_size, fee_per_vb);
+    let spendable_value = tx_value * tx_inputs_size;
     let mut tx = Transaction {
         version: 2,
         lock_time: 0,
-        input: vec![txin],
+        input: tx_inputs,
         output: vec![TxOut {
             value: spendable_value.saturating_sub(fee),
             script_pubkey: recipient_address.script_pubkey(),
         }],
     };
 
-    let pub_key = priv_key.public_key();
     let sighash_type = SigHashType::All; // SIGHASH_ALL
     let mut bip143hasher = SigHashCache::new(&mut tx);
-    let sighash = bip143hasher.segwit_signature_hash(
-        0,
-        &script_code(&pub_key),
-        spendable_value,
-        sighash_type,
-    )?;
-    let signature = sign(&Message::parse_slice(&sighash[..])?, &priv_key.key).0;
-    let mut with_hashtype = signature.serialize_der().as_ref().to_vec();
-    with_hashtype.push(sighash_type.as_u32() as u8);
-    bip143hasher.witness_mut(0).unwrap().push(with_hashtype);
-    bip143hasher
-        .witness_mut(0)
-        .unwrap()
-        .push(pub_key.to_bytes().to_vec());
+    for i in 0..priv_keys.len() {
+        let priv_key = priv_keys[i];
+        let pub_key = priv_key.public_key();
+        let sighash = bip143hasher.segwit_signature_hash(
+            i,
+            &script_code(&pub_key),
+            tx_value,
+            sighash_type,
+        )?;
+        let signature = sign(&Message::parse_slice(&sighash[..])?, &priv_key.key).0;
+        let mut with_hashtype = signature.serialize_der().as_ref().to_vec();
+        with_hashtype.push(sighash_type.as_u32() as u8);
+        bip143hasher.witness_mut(i).unwrap().push(with_hashtype);
+        bip143hasher
+            .witness_mut(i)
+            .unwrap()
+            .push(pub_key.to_bytes().to_vec());
+    }
     Ok(tx)
 }

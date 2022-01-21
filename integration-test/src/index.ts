@@ -3,7 +3,10 @@ import { assert } from 'chai';
 import { BigNumber, buildSigningCosmWasmClient } from 'sbtc-js';
 import { LogClient } from 'sbtc-js/build/contracts/log/LogClient';
 import { GatewayClient } from 'sbtc-js/build/contracts/gateway/GatewayClient';
+import { HandleMsg as GatewayHandleMsg } from 'sbtc-js/build/contracts/gateway/types';
 import { ShurikenClient } from 'sbtc-js/build/contracts/shuriken/ShurikenClient';
+import { MultisigClient } from 'sbtc-js/build/contracts/multisig/MultisigClient';
+import { HandleMsg as MultisigHandleMsg } from 'sbtc-js/build/contracts/multisig/types';
 import { networks } from 'sbtc-js/build/contracts/bitcoin_spv/BitcoinSPVClient';
 import RpcTxFeeResultRepository from 'sbtc-js/build/TxFeeResult/RPCTxFeeResultRepository';
 import axios from 'axios';
@@ -99,7 +102,12 @@ void (async () => {
     const sfpsClient = await gatewayClient.sfpsClient();
     const bitcoinSPVClient = await gatewayClient.bitcoinSPVClient();
     const financeAdminClient = await gatewayClient.financeAdminClient();
-
+    const gatewayConfig = await gatewayClient.config();
+    const multisigClient = new MultisigClient(
+        gatewayConfig.ownerAddress,
+        signingCosmWasmClient,
+        logger
+    );
     console.log(await financeAdminClient.config());
     console.log(
         await financeAdminClient.mintReward(
@@ -121,8 +129,6 @@ void (async () => {
     await feeReporter.report(await gatewayClient.setViewingKey('viewing key'));
     await feeReporter.report(await logClient.setViewingKey('viewing key'));
 
-    // Get Gateway Config
-    const gatewayConfig = await gatewayClient.config();
     const initialBalance = await sbtcClient.getBalance();
     const btcTxValue = gatewayConfig.btcTxValues[0];
 
@@ -327,6 +333,7 @@ void (async () => {
             shurikenClient,
             sfpsClient,
             tendermintClient,
+            10,
             logger
         );
         let syncTendermintHeadersResults: ExecuteResult<any, any>[] = [];
@@ -363,7 +370,7 @@ void (async () => {
         // Create Merkle Proof
         const txs = await tendermintClient.getTxsInBlock(txHeight);
         const index = txs.findIndex((tx) => tx.hash === txHash);
-        const merkleProof = await MerkleProof.fromRpcTxs(txs, index);
+        const merkleProof = MerkleProof.fromRpcTxs(txs, index);
 
         // Get Header Chains until the synced light block
         const bestHash = await sfpsClient.currentHighestHeaderHash();
@@ -398,6 +405,15 @@ void (async () => {
 
         // Assert
         assert.equal(bitcoinTransaction.outs[0].value, 99989000);
+        assert.equal(bitcoinTransaction.virtualSize() * feePerVb, 11000);
+        assert.equal(
+            GatewayClient.calcReleaseTxFee(
+                receiveAddress,
+                networks.regtest,
+                feePerVb
+            ),
+            11000
+        );
         assert.equal(
             address.fromOutputScript(
                 bitcoinTransaction.outs[0].script,
@@ -415,6 +431,59 @@ void (async () => {
         );
         assert.isTrue(balance.isEqualTo(initialBalance));
     })();
+
+    /// suspend gateway
+    const suspensionSwitch = {
+        claim_release_btc: true,
+        release_incorrect_amount_btc: true,
+        request_mint_address: true,
+        request_release_btc: true,
+        verify_mint_tx: true,
+    };
+    const gatewayHandleMsg: GatewayHandleMsg = {
+        set_suspension_switch: {
+            suspension_switch: suspensionSwitch,
+        },
+    };
+    await feeReporter.report(
+        await multisigClient.submitTransaction(
+            gatewayHandleMsg,
+            await signingCosmWasmClient.getCodeHashByContractAddr(
+                gatewayAddress
+            ),
+            gatewayAddress,
+            []
+        )
+    );
+    assert.deepEqual(
+        await gatewayClient.getSuspensionSwitch(),
+        suspensionSwitch
+    );
+    const multisigHandleMsg: MultisigHandleMsg = {
+        change_config: {
+            config: {
+                required: 1,
+                signers: [signingCosmWasmClient.senderAddress, gatewayAddress],
+            },
+        },
+    };
+    await feeReporter.report(
+        await multisigClient.submitTransaction(
+            multisigHandleMsg,
+            await signingCosmWasmClient.getCodeHashByContractAddr(
+                multisigClient.contractAddress
+            ),
+            multisigClient.contractAddress,
+            []
+        )
+    );
+    assert.deepEqual(await multisigClient.multisigStatus(), {
+        config: {
+            required: 1,
+            signers: [signingCosmWasmClient.senderAddress, gatewayAddress],
+        },
+        transaction_count: 2,
+    });
     const logs = await logClient.queryLog(0, 50);
     console.log(logs);
 })();

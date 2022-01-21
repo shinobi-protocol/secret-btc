@@ -31,10 +31,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             set_config(deps, config)?;
             Ok(HandleResponse::default())
         }
-        HandleMsg::SubmitTransaction { msg } => {
+        HandleMsg::SubmitTransaction { transaction } => {
             let config = read_config(&deps.storage, &deps.api)?;
             let mut transaction_status = TransactionStatus {
-                msg,
+                transaction,
                 config,
                 signed_by: vec![],
             };
@@ -65,7 +65,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 
 fn extract_confirmed_msg(status: &TransactionStatus) -> Vec<CosmosMsg> {
     if status.is_confirmed() {
-        vec![status.msg.clone()]
+        vec![status.transaction.clone().into()]
     } else {
         vec![]
     }
@@ -112,6 +112,7 @@ mod test {
     use super::*;
     use cosmwasm_std::testing::*;
     use cosmwasm_std::*;
+    use shared_types::multisig::Transaction;
 
     fn mock_config() -> Config {
         Config {
@@ -194,14 +195,14 @@ mod test {
     fn test_submit_transaction_sanity() {
         let mut deps = mock_deps_with_config();
         let env = mock_env("signer1", &[]);
-        let cosmos_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        let transaction = Transaction {
             contract_addr: "contract_addr".into(),
             callback_code_hash: "callback_code_hash".into(),
             msg: Binary::from(&[0, 1, 2]),
             send: vec![Coin::new(100u128, "uscrt")],
-        });
+        };
         let handle_msg = HandleMsg::SubmitTransaction {
-            msg: cosmos_msg.clone(),
+            transaction: transaction.clone(),
         };
         let response = handle(&mut deps, env, handle_msg).unwrap();
         match from_binary(&response.data.unwrap()).unwrap() {
@@ -214,7 +215,7 @@ mod test {
         assert_eq!(
             status,
             TransactionStatus {
-                msg: cosmos_msg,
+                transaction: transaction,
                 config: mock_config(),
                 signed_by: vec![0]
             }
@@ -225,14 +226,14 @@ mod test {
     fn test_submit_transaction_from_foreigner() {
         let mut deps = mock_deps_with_config();
         let env = mock_env("foreigner", &[]);
-        let cosmos_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        let transaction = Transaction {
             contract_addr: "contract_addr".into(),
             callback_code_hash: "callback_code_hash".into(),
             msg: Binary::from(&[0, 1, 2]),
             send: vec![Coin::new(100u128, "uscrt")],
-        });
+        };
         let handle_msg = HandleMsg::SubmitTransaction {
-            msg: cosmos_msg.clone(),
+            transaction: transaction.clone(),
         };
         let err = handle(&mut deps, env, handle_msg).unwrap_err();
         assert_eq!(err, StdError::generic_err("not signer"))
@@ -244,14 +245,14 @@ mod test {
 
         // Submit Transaction From Signers
         let env = mock_env("signer1", &[]);
-        let cosmos_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        let transaction = Transaction {
             contract_addr: "contract_addr".into(),
             callback_code_hash: "callback_code_hash".into(),
             msg: Binary::from(&[0, 1, 2]),
             send: vec![Coin::new(100u128, "uscrt")],
-        });
+        };
         let handle_msg = HandleMsg::SubmitTransaction {
-            msg: cosmos_msg.clone(),
+            transaction: transaction.clone(),
         };
         handle(&mut deps, env, handle_msg).unwrap();
 
@@ -272,7 +273,7 @@ mod test {
         // Submit Transaction From New Signers
         let env = mock_env("new_signer1", &[]);
         let handle_msg = HandleMsg::SubmitTransaction {
-            msg: cosmos_msg.clone(),
+            transaction: transaction.clone(),
         };
         handle(&mut deps, env, handle_msg).unwrap();
 
@@ -281,7 +282,7 @@ mod test {
         assert_eq!(
             status,
             TransactionStatus {
-                msg: cosmos_msg.clone(),
+                transaction: transaction.clone(),
                 config: mock_config(),
                 signed_by: vec![0]
             }
@@ -291,7 +292,7 @@ mod test {
         assert_eq!(
             status,
             TransactionStatus {
-                msg: cosmos_msg,
+                transaction: transaction,
                 config: Config {
                     signers: vec![
                         "new_signer1".into(),
@@ -318,32 +319,32 @@ mod test {
         )
         .unwrap();
         let env = mock_env("signer", &[]);
-        let cosmos_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        let transaction = Transaction {
             contract_addr: "contract_addr".into(),
             callback_code_hash: "callback_code_hash".into(),
             msg: Binary::from(&[0, 1, 2]),
             send: vec![Coin::new(100u128, "uscrt")],
-        });
+        };
         let handle_msg = HandleMsg::SubmitTransaction {
-            msg: cosmos_msg.clone(),
+            transaction: transaction.clone(),
         };
         let response = handle(&mut deps, env, handle_msg).unwrap();
-        assert_eq!(response.messages, vec![cosmos_msg]);
+        assert_eq!(response.messages, vec![transaction.into()]);
     }
 
     #[test]
     fn test_sign_transaction() {
         let mut deps = mock_dependencies(20, &[]);
-        let cosmos_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        let transaction = Transaction {
             contract_addr: "contract_addr".into(),
             callback_code_hash: "callback_code_hash".into(),
             msg: Binary::from(&[0, 1, 2]),
             send: vec![Coin::new(100u128, "uscrt")],
-        });
+        };
         append_transaction_status(
             &mut deps.storage,
             TransactionStatus {
-                msg: cosmos_msg.clone(),
+                transaction: transaction.clone(),
                 config: Config {
                     signers: vec!["signer1".into(), "signer2".into(), "signer3".into()],
                     required: 3,
@@ -372,22 +373,22 @@ mod test {
         let env = mock_env("signer3", &[]);
         let handle_msg = HandleMsg::SignTransaction { transaction_id: 0 };
         let response = handle(&mut deps, env, handle_msg).unwrap();
-        assert_eq!(response.messages, vec![cosmos_msg]);
+        assert_eq!(response.messages, vec![transaction.into()]);
     }
 
     #[test]
     fn test_query_transaction_status() {
         let mut deps = mock_dependencies(20, &[]);
-        let cosmos_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        let transaction = Transaction {
             contract_addr: "contract_addr".into(),
             callback_code_hash: "callback_code_hash".into(),
             msg: Binary::from(&[0, 1, 2]),
             send: vec![Coin::new(100u128, "uscrt")],
-        });
+        };
         append_transaction_status(
             &mut deps.storage,
             TransactionStatus {
-                msg: cosmos_msg.clone(),
+                transaction: transaction.clone(),
                 config: Config {
                     signers: vec!["signer1".into(), "signer2".into(), "signer3".into()],
                     required: 3,
@@ -403,7 +404,7 @@ mod test {
                 assert_eq!(
                     status,
                     TransactionStatus {
-                        msg: cosmos_msg.clone(),
+                        transaction: transaction.clone(),
                         config: (Config {
                             signers: vec!["signer1".into(), "signer2".into(), "signer3".into()],
                             required: 3,
@@ -432,16 +433,16 @@ mod test {
             }
             _ => unreachable!(),
         }
-        let cosmos_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        let transaction = Transaction {
             contract_addr: "contract_addr".into(),
             callback_code_hash: "callback_code_hash".into(),
             msg: Binary::from(&[0, 1, 2]),
             send: vec![Coin::new(100u128, "uscrt")],
-        });
+        };
         append_transaction_status(
             &mut deps.storage,
             TransactionStatus {
-                msg: cosmos_msg.clone(),
+                transaction: transaction.clone(),
                 config: mock_config(),
                 signed_by: vec![0],
             },

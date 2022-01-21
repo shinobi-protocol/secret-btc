@@ -27,7 +27,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryM
             ..
         } => query_verify_merkle_proof(&deps.storage, height, tx, merkle_proof),
     };
-    result.map_err(|e| e.into())
+    Ok(result?)
 }
 
 fn query_config<S: Storage, A: Api, Q: Querier>(

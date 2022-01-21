@@ -14,7 +14,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    try_init(deps, env, msg).map_err(|e| e.into())
+    Ok(try_init(deps, env, msg)?)
 }
 
 fn try_init<S: Storage, A: Api, Q: Querier>(

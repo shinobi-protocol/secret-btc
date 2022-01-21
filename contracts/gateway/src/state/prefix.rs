@@ -4,3 +4,4 @@ pub const PREFIX_UTXO_QUEUE: &[u8] = b"utxo";
 pub const PREFIX_RELEASE_REQUESTS: &[u8] = b"request";
 pub const PREFIX_PRNG: &[u8] = b"prng";
 pub const CONFIG_KEY: &[u8] = b"config";
+pub const CONTRACT_STATUS_KEY: &[u8] = b"contract_status";

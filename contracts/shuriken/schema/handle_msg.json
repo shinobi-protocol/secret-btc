@@ -346,40 +346,28 @@
         {
           "type": "object",
           "required": [
-            "add_light_block"
+            "add_light_blocks"
           ],
           "properties": {
-            "add_light_block": {
+            "add_light_blocks": {
               "type": "object",
               "required": [
                 "current_highest_header",
-                "light_block"
+                "entropy",
+                "light_blocks"
               ],
               "properties": {
                 "current_highest_header": {
                   "$ref": "#/definitions/Header"
                 },
-                "light_block": {
-                  "$ref": "#/definitions/LightBlock"
-                }
-              }
-            }
-          }
-        },
-        {
-          "type": "object",
-          "required": [
-            "add_entropy"
-          ],
-          "properties": {
-            "add_entropy": {
-              "type": "object",
-              "required": [
-                "entropy"
-              ],
-              "properties": {
                 "entropy": {
                   "$ref": "#/definitions/Binary"
+                },
+                "light_blocks": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/LightBlock"
+                  }
                 }
               }
             }

@@ -2,7 +2,7 @@ use crate::{
     bitcoin_spv, sfps, viewing_key, CanonicalContractReference, Canonicalize, ContractReference,
     BLOCK_SIZE,
 };
-use cosmwasm_std::{Api, Binary, HumanAddr, StdResult};
+use cosmwasm_std::{Api, Binary, CanonicalAddr, HumanAddr, StdResult};
 use schemars::JsonSchema;
 use secret_toolkit::utils::HandleCallback;
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ use std::collections::HashSet;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InitMsg {
-    pub prng_seed: Binary,
+    pub entropy: Binary,
     pub config: Config,
 }
 
@@ -26,6 +26,9 @@ pub struct Config {
     pub sbtc: ContractReference,
     pub finance_admin: ContractReference,
     pub log: ContractReference,
+
+    /// [Owner]
+    pub owner: HumanAddr,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -36,6 +39,7 @@ pub struct CanonicalConfig {
     pub sbtc: CanonicalContractReference,
     pub finance_admin: CanonicalContractReference,
     pub log: CanonicalContractReference,
+    pub owner: CanonicalAddr,
 }
 
 impl Canonicalize for Config {
@@ -49,6 +53,7 @@ impl Canonicalize for Config {
             sbtc: self.sbtc.into_canonical(api)?,
             finance_admin: self.finance_admin.into_canonical(api)?,
             log: self.log.into_canonical(api)?,
+            owner: self.owner.into_canonical(api)?,
         })
     }
 
@@ -60,6 +65,7 @@ impl Canonicalize for Config {
             sbtc: ContractReference::from_canonical(canonical.sbtc, api)?,
             finance_admin: ContractReference::from_canonical(canonical.finance_admin, api)?,
             log: ContractReference::from_canonical(canonical.log, api)?,
+            owner: HumanAddr::from_canonical(canonical.owner, api)?,
         })
     }
 }
@@ -103,6 +109,18 @@ pub enum HandleMsg {
     ChangeFinanceAdmin {
         new_finance_admin: ContractReference,
     },
+    ChangeOwner {
+        new_owner: HumanAddr,
+    },
+    SetSuspensionSwitch {
+        suspension_switch: SuspensionSwitch,
+    },
+    ReleaseBtcByOwner {
+        tx_value: u64,
+        max_input_length: u64,
+        recipient_address: String,
+        fee_per_vb: u64,
+    },
 }
 
 impl HandleCallback for HandleMsg {
@@ -117,6 +135,7 @@ pub enum HandleAnswer {
     ReleaseIncorrectAmountBTC { tx: Binary },
     ClaimReleasedBtc { tx: Binary },
     RequestReleaseBtc { request_key: RequestKey },
+    ReleaseBtcByOwner { tx: Binary },
 }
 
 #[derive(Serialize, Deserialize, Clone, JsonSchema, Debug)]
@@ -126,6 +145,7 @@ pub enum QueryMsg {
         address: HumanAddr,
         key: viewing_key::ViewingKey,
     },
+    SuspensionSwitch {},
     Config {},
 }
 
@@ -134,6 +154,7 @@ pub enum QueryMsg {
 pub enum QueryAnswer {
     MintAddress { address: Option<String> },
     Config(Config),
+    SuspensionSwitch(SuspensionSwitch),
     ViewingKeyError { msg: String },
 }
 
@@ -157,4 +178,14 @@ impl RequestKey {
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+// true => supsend
+pub struct SuspensionSwitch {
+    pub request_mint_address: bool,
+    pub verify_mint_tx: bool,
+    pub release_incorrect_amount_btc: bool,
+    pub request_release_btc: bool,
+    pub claim_release_btc: bool,
 }

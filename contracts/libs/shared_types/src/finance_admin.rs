@@ -31,10 +31,12 @@ where
     MintBitcoinSPVReward {
         executer: HumanAddr,
         best_height: u32,
+        best_block_time: u32,
     },
     MintSFPSReward {
         executer: HumanAddr,
         best_height: u64,
+        best_block_time: u64,
     },
     Custom {
         #[serde(bound = "")]
@@ -65,13 +67,22 @@ where
         sbtc_release_amount: Uint128,
         sbtc_total_supply: Uint128,
     },
+    LatestBitcoinSPVReward {},
+    LatestSFPSReward {},
     Custom {
         #[serde(bound = "")]
         custom_msg: C,
     },
 }
 
-pub type QueryAnswer = Vec<Operation>;
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryAnswer {
+    MintReward(Vec<Operation>),
+    ReleaseFee(Vec<Operation>),
+    LatestBitcoinSPVReward(Uint128),
+    LatestSFPSReward(Uint128),
+}
 
 impl<C> Query for QueryMsg<C>
 where

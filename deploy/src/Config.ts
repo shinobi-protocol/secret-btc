@@ -1,21 +1,19 @@
 import { FeeTable } from 'secretjs';
 
 export class Config {
-    bitcoinNetwork!: string;
     lcdUrl!: string;
     mnemonic!: string;
     rpcUrl!: string;
-    snNetwork!: string;
+    environment!: string;
     gitCommitHash!: string;
     customFees?: Partial<FeeTable>;
 
     public static init(): Config {
         let config = new Config();
-        config.bitcoinNetwork = process.env.BITCOIN_NETWORK!;
         config.rpcUrl = process.env.TENDERMINT_RPC_URL!;
         config.lcdUrl = process.env.LCD_URL!;
         config.mnemonic = process.env.MNEMONIC!;
-        config.snNetwork = process.env.SN_NETWORK!;
+        config.environment = process.env.ENVIRONMENT!;
         config.gitCommitHash = process.env.GIT_COMMIT_HASH!;
         config.customFees = {
             upload: {

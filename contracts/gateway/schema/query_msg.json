@@ -28,6 +28,17 @@
     {
       "type": "object",
       "required": [
+        "suspension_switch"
+      ],
+      "properties": {
+        "suspension_switch": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
         "config"
       ],
       "properties": {

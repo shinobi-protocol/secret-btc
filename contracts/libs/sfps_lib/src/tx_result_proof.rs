@@ -133,7 +133,7 @@ impl TxResult {
 // 1. (1 < a < length(headers)) header[a] contains hash of header[a-1] as it's last_block_id.hash'
 // 2. the first element of headers(= the lowest header of headers) contains merkle root of merkle proof as it's 'last_result_hash'
 // 3. merkle proof includes tx_result as it's leaf
-#[derive(Serialize, Deserialize, schemars::JsonSchema, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, schemars::JsonSchema, Clone, Debug, PartialEq, Default)]
 pub struct TxResultProof {
     pub tx_result: TxResult,
     pub merkle_proof: MerkleProof,

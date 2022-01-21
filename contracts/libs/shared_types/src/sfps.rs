@@ -70,11 +70,9 @@ pub fn verify_tx_result_proof<Q: Querier, H: DeserializeOwned>(
 // Workaround for exports schemas for duplicated name types on different modules.
 #[schemars(rename = "SFPSHandleMsg")]
 pub enum HandleMsg {
-    AddLightBlock {
+    AddLightBlocks {
         current_highest_header: Header,
-        light_block: LightBlock,
-    },
-    AddEntropy {
+        light_blocks: Vec<LightBlock>,
         entropy: Binary,
     },
 }

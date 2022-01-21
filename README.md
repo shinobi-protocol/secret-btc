@@ -1,5 +1,9 @@
 # Secret-BTC - Privacy coin backed by BTC
 
+## Join Shuriken Network Public Beta as a Shuriken Node
+
+See [/client/shuriken-node](./client/shuriken-node)
+
 ## Play with it on local with regtest bitcoin network
 
 ### 1. Compile the contract to wasm

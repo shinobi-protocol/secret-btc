@@ -14,7 +14,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> InitResult {
-    prng::init_prng(&mut deps.storage, PRNG_KEY, &env, msg.prng_seed.as_slice())?;
+    prng::init_prng(&mut deps.storage, PRNG_KEY, &env, msg.entropy.as_slice())?;
     Ok(InitResponse::default())
 }
 
@@ -107,14 +107,16 @@ mod test {
     use super::*;
     use cosmwasm_std::testing::*;
     use shared_types::log::event::*;
+    use shared_types::viewing_key::ViewingKey;
 
     #[test]
     fn test_query_log() {
         let mut deps = mock_dependencies(20, &[]);
         let canonical_addr = deps.api.canonical_address(&"lebron".into()).unwrap();
         let mut log_storage = LogStorage::from_storage(&mut deps.storage, &canonical_addr);
+        let viewing_key = ViewingKey("viewing_key".to_string());
         let time = 1000;
-        let max_time = 1039;
+
         for i in 0..40 {
             log_storage
                 .append(&Event::MintStarted(MintStartedData {
@@ -123,41 +125,91 @@ mod test {
                 }))
                 .unwrap()
         }
-        // page_size = 10
-        for page in 0u32..4u32 {
-            let logs = log_storage.get_logs(page, 10).unwrap();
-            assert_eq!(logs.len(), 10);
-            for (i, log) in logs.iter().enumerate() {
-                assert_eq!(
-                    log,
-                    &Event::MintStarted(MintStartedData {
-                        time: max_time - (page as u64) * 10 - i as u64,
+
+        handle(
+            &mut deps,
+            mock_env("lebron", &[]),
+            HandleMsg::SetViewingKey {
+                key: viewing_key.clone(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            query(
+                &deps,
+                QueryMsg::Log {
+                    address: "lebron".into(),
+                    key: viewing_key.clone(),
+                    page: 0,
+                    page_size: 0,
+                },
+            )
+            .unwrap(),
+            to_binary(&QueryAnswer::Log { logs: vec![] }).unwrap()
+        );
+        assert_eq!(
+            query(
+                &deps,
+                QueryMsg::Log {
+                    address: "lebron".into(),
+                    key: viewing_key.clone(),
+                    page: 0,
+                    page_size: 2,
+                },
+            )
+            .unwrap(),
+            to_binary(&QueryAnswer::Log {
+                logs: vec![
+                    Event::MintStarted(MintStartedData {
+                        time: 1039,
+                        address: "address".to_string()
+                    }),
+                    Event::MintStarted(MintStartedData {
+                        time: 1038,
                         address: "address".to_string()
                     })
-                )
-            }
-        }
-        assert_eq!(log_storage.get_logs(4, 10).unwrap(), vec![]);
-        assert_eq!(log_storage.get_logs(5, 10).unwrap(), vec![]);
-        // page_size = 20
-        for page in 0u32..2u32 {
-            let logs = log_storage.get_logs(page, 20).unwrap();
-            assert_eq!(logs.len(), 20);
-            for (i, log) in logs.iter().enumerate() {
-                assert_eq!(
-                    log,
-                    &Event::MintStarted(MintStartedData {
-                        time: max_time - (page as u64) * 20 - i as u64,
+                ]
+            })
+            .unwrap()
+        );
+        assert_eq!(
+            query(
+                &deps,
+                QueryMsg::Log {
+                    address: "lebron".into(),
+                    key: viewing_key,
+                    page: 1,
+                    page_size: 2,
+                },
+            )
+            .unwrap(),
+            to_binary(&QueryAnswer::Log {
+                logs: vec![
+                    Event::MintStarted(MintStartedData {
+                        time: 1037,
+                        address: "address".to_string()
+                    }),
+                    Event::MintStarted(MintStartedData {
+                        time: 1036,
                         address: "address".to_string()
                     })
-                )
-            }
-        }
-        assert_eq!(log_storage.get_logs(2, 20).unwrap(), vec![]);
-        // page_size = 30
-        assert_eq!(log_storage.get_logs(0, 30).unwrap().len(), 30);
-        assert_eq!(log_storage.get_logs(1, 30).unwrap().len(), 10);
-        // page_size = 50
-        assert_eq!(log_storage.get_logs(0, 50).unwrap().len(), 40);
+                ]
+            })
+            .unwrap()
+        );
+        assert_eq!(
+            query(
+                &deps,
+                QueryMsg::Log {
+                    address: "lebron".into(),
+                    key: ViewingKey("wrong_viewing_key".into()),
+                    page: 1,
+                    page_size: 2,
+                },
+            )
+            .unwrap_err(),
+            StdError::generic_err("wrong viewing key")
+        );
     }
 }
