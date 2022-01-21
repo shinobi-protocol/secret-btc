@@ -17,7 +17,7 @@ class ShurikenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
     ): Promise<ExecuteResult<void>> {
         if (!gasLimit) {
             const baseFee = 800000;
-            const feePerBlock = 25000;
+            const feePerBlock = 50000;
             gasLimit = baseFee + feePerBlock * blocks.length;
         }
         return await this.execute(
@@ -40,21 +40,23 @@ class ShurikenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
 
     public async proxySFPSAddLightBlock(
         current_highest_header: CurrentHighestHeaderObject,
-        light_block: LightBlock,
+        light_blocks: LightBlock[],
+        entropy: Buffer,
         gasLimit?: number
     ): Promise<ExecuteResult<void>> {
         return await this.execute(
             {
                 s_f_p_s_proxy: {
                     msg: {
-                        add_light_block: {
+                        add_light_blocks: {
                             current_highest_header,
-                            light_block,
+                            light_blocks,
+                            entropy: entropy.toString('base64'),
                         },
                     },
                 },
             },
-            gasLimit || 300000,
+            gasLimit || 10000000,
             () => void 0
         );
     }

@@ -5,7 +5,7 @@ pub use event::Event;
 use secret_toolkit::utils::{HandleCallback, Query};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, schemars::JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, schemars::JsonSchema, Debug, PartialEq)]
 pub struct Config {
     pub gateway: ContractReference,
     pub treasury: ContractReference,
@@ -35,10 +35,10 @@ impl Canonicalize for Config {
 
 #[derive(Serialize, Deserialize, Clone, schemars::JsonSchema, Debug)]
 pub struct InitMsg {
-    pub prng_seed: Binary,
+    pub entropy: Binary,
 }
 
-#[derive(Serialize, Deserialize, Clone, schemars::JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, schemars::JsonSchema, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     Setup { config: Config },

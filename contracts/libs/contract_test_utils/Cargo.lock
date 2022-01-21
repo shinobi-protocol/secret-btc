@@ -12,20 +12,8 @@ checksum = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
 name = "contract_test_utils"
 version = "0.1.0"
 dependencies = [
- "cosmwasm-std",
+ "secret-cosmwasm-std",
  "serde",
-]
-
-[[package]]
-name = "cosmwasm-std"
-version = "0.10.0"
-source = "git+https://github.com/enigmampc/SecretNetwork?tag=v1.0.4-debug-print#004c6bca6f2b7f31a6594abe4f44f2e41b1456b3"
-dependencies = [
- "base64",
- "schemars",
- "serde",
- "serde-json-wasm",
- "snafu",
 ]
 
 [[package]]
@@ -85,6 +73,19 @@ dependencies = [
  "quote",
  "serde_derive_internals",
  "syn",
+]
+
+[[package]]
+name = "secret-cosmwasm-std"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ef24a4c7c02a2667b5c1c8a297879eca908428ac17068dcec2e61a4cba189ad"
+dependencies = [
+ "base64",
+ "schemars",
+ "serde",
+ "serde-json-wasm",
+ "snafu",
 ]
 
 [[package]]

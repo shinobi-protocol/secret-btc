@@ -4,5 +4,8 @@
     },
     "testnet": {
         "max_interval": 50
+    },
+    "mainnet-test": {
+        "max_interval": 50
     }
 }

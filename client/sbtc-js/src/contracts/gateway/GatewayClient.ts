@@ -4,10 +4,17 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { Account, SigningCosmWasmClient } from 'secretjs';
-import { Transaction } from 'bitcoinjs-lib';
+import { encodingLength } from 'bip174/src/lib/converter/varint';
+import { address, Network, Transaction } from 'bitcoinjs-lib';
 import { MerkleProof } from '../bitcoin_spv/BitcoinMerkleTree';
 import { MerkleProof as TendermintMerkleProof } from '../sfps/TendermintMerkleTree';
-import { HandleMsg, QueryMsg, QueryAnswer, Convert } from './types';
+import {
+    HandleMsg,
+    QueryMsg,
+    QueryAnswer,
+    Convert,
+    QueryAnswerSuspensionSwitch,
+} from './types';
 import { SFPSClient } from '../sfps/SFPSClient';
 import { TokenClient } from '../token/TokenClient';
 import {
@@ -33,6 +40,7 @@ interface Config {
     bitcoinSPVContractHash: string;
     financeAdminContractAddress: string;
     financeAdminContractHash: string;
+    ownerAddress: string;
 }
 
 class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
@@ -232,6 +240,7 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
             bitcoinSPVContractHash: raw.bitcoin_spv.hash,
             financeAdminContractAddress: raw.finance_admin.address,
             financeAdminContractHash: raw.finance_admin.hash,
+            ownerAddress: raw.owner,
         } as Config;
     }
 
@@ -248,6 +257,54 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
             },
         });
         return answer.mint_address!.address || undefined;
+    }
+
+    public async getSuspensionSwitch(): Promise<QueryAnswerSuspensionSwitch> {
+        const answer = await this.query({
+            suspension_switch: {},
+        });
+        return answer.suspension_switch!;
+    }
+
+    // https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki
+    // https://github.com/bitcoin/bips/blob/master/bip-0144.mediawiki
+    // Return Max Weight of Transaction after signed.
+    // Weight of Signature in P2WPKH Witness can be 71 or 72.
+    // This function calculates Max Weight as the weight of signature to be 72.
+    public static calcReleaseTxFee(
+        recipientAddress: string,
+        network: Network,
+        feePerVb: number
+    ): number {
+        const INPUT_CONSTANT_WEIGHT = 160; // (Transaction Hash(32) + Output Index(4) + Sequence Number(4)) * 4
+        const P2WPKH_SCRIPT_SIG_WEIGHT = 4; // (Script Sig Length VarInt(1) + Script Sig(0)) * 4
+        const P2WPKH_WITNESS_WEIGHT = 108; // Witness Count VarInt(1) + Signature Length VarInt(1) + Signature (71 or 72) + Pubkey Length Varint (1) + pubkey(33)
+        const TX_CONSTANT_WEIGHT = 34; // (Version(4) + Lock Time(4)) * 4 + Marker(1) + Flag(1)
+        const OUTPUT_CONSTANT_WEIGHT = 32; // Amount(8) * 4
+        const TXIN_COUNT_WEIGHT = 4; // Tx Count VarInt(1) * 4
+        const TXOUT_COUNT_WEIGHT = 4; // Tx Count VarInt(1) * 4
+
+        const scriptPubkeyLength = address.toOutputScript(
+            recipientAddress,
+            network
+        ).length;
+        const inputWeight =
+            INPUT_CONSTANT_WEIGHT +
+            P2WPKH_SCRIPT_SIG_WEIGHT +
+            P2WPKH_WITNESS_WEIGHT;
+        const outputWeight =
+            OUTPUT_CONSTANT_WEIGHT +
+            (encodingLength(scriptPubkeyLength) + scriptPubkeyLength) * 4;
+        return (
+            Math.ceil(
+                (TX_CONSTANT_WEIGHT +
+                    TXIN_COUNT_WEIGHT +
+                    inputWeight +
+                    TXOUT_COUNT_WEIGHT +
+                    outputWeight) /
+                    4
+            ) * feePerVb
+        );
     }
 
     private async initReferenceContractClients() {

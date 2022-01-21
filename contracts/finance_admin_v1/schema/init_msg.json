@@ -3,11 +3,19 @@
   "title": "InitMsg",
   "type": "object",
   "required": [
-    "config"
+    "bitcoin_spv_base_reward",
+    "config",
+    "sfps_base_reward"
   ],
   "properties": {
+    "bitcoin_spv_base_reward": {
+      "$ref": "#/definitions/Uint128"
+    },
     "config": {
       "$ref": "#/definitions/Config"
+    },
+    "sfps_base_reward": {
+      "$ref": "#/definitions/Uint128"
     }
   },
   "definitions": {
@@ -58,6 +66,9 @@
       }
     },
     "HumanAddr": {
+      "type": "string"
+    },
+    "Uint128": {
       "type": "string"
     }
   }

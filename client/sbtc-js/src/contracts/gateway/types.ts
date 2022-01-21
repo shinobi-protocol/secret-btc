@@ -17,6 +17,7 @@ export interface HandleAnswer {
     release_incorrect_amount_b_t_c?: HandleAnswerReleaseIncorrectAmountBTC;
     claim_released_btc?: HandleAnswerClaimReleasedBtc;
     request_release_btc?: HandleAnswerRequestReleaseBtc;
+    release_btc_by_owner?: HandleAnswerReleaseBtcByOwner;
 }
 
 export interface HandleAnswerClaimReleasedBtc {
@@ -25,6 +26,10 @@ export interface HandleAnswerClaimReleasedBtc {
 
 export interface HandleAnswerCreateViewingKey {
     key: string;
+}
+
+export interface HandleAnswerReleaseBtcByOwner {
+    tx: string;
 }
 
 export interface HandleAnswerReleaseIncorrectAmountBTC {
@@ -48,6 +53,9 @@ export interface HandleMsg {
     request_release_btc?: HandleMsgRequestReleaseBtc;
     claim_released_btc?: HandleMsgClaimReleasedBtc;
     change_finance_admin?: ChangeFinanceAdmin;
+    change_owner?: ChangeOwner;
+    set_suspension_switch?: SetSuspensionSwitch;
+    release_btc_by_owner?: HandleMsgReleaseBtcByOwner;
 }
 
 export interface ChangeFinanceAdmin {
@@ -57,6 +65,10 @@ export interface ChangeFinanceAdmin {
 export interface NewFinanceAdminObject {
     address: string;
     hash: string;
+}
+
+export interface ChangeOwner {
+    new_owner: string;
 }
 
 export interface HandleMsgClaimReleasedBtc {
@@ -179,6 +191,13 @@ export interface HandleMsgCreateViewingKey {
     entropy: string;
 }
 
+export interface HandleMsgReleaseBtcByOwner {
+    fee_per_vb: number;
+    max_input_length: number;
+    recipient_address: string;
+    tx_value: number;
+}
+
 export interface HandleMsgReleaseIncorrectAmountBTC {
     fee_per_vb: number;
     height: number;
@@ -201,6 +220,18 @@ export interface HandleMsgRequestReleaseBtc {
     entropy: string;
 }
 
+export interface SetSuspensionSwitch {
+    suspension_switch: SetSuspensionSwitchSuspensionSwitch;
+}
+
+export interface SetSuspensionSwitchSuspensionSwitch {
+    claim_release_btc: boolean;
+    release_incorrect_amount_btc: boolean;
+    request_mint_address: boolean;
+    request_release_btc: boolean;
+    verify_mint_tx: boolean;
+}
+
 export interface SetViewingKey {
     key: string;
 }
@@ -213,7 +244,7 @@ export interface VerifyMintTx {
 
 export interface InitMsg {
     config: InitMsgConfig;
-    prng_seed: string;
+    entropy: string;
 }
 
 export interface InitMsgConfig {
@@ -227,6 +258,10 @@ export interface InitMsgConfig {
     btc_tx_values: number[];
     finance_admin: PurpleContractReference;
     log: PurpleContractReference;
+    /**
+     * [Owner]
+     */
+    owner: string;
     sbtc: PurpleContractReference;
     sfps: PurpleContractReference;
 }
@@ -242,6 +277,7 @@ export interface PurpleContractReference {
 export interface QueryAnswer {
     mint_address?: QueryAnswerMintAddress;
     config?: QueryAnswerConfig;
+    suspension_switch?: QueryAnswerSuspensionSwitch;
     viewing_key_error?: ViewingKeyError;
 }
 
@@ -256,6 +292,10 @@ export interface QueryAnswerConfig {
     btc_tx_values: number[];
     finance_admin: FluffyContractReference;
     log: FluffyContractReference;
+    /**
+     * [Owner]
+     */
+    owner: string;
     sbtc: FluffyContractReference;
     sfps: FluffyContractReference;
 }
@@ -272,12 +312,21 @@ export interface QueryAnswerMintAddress {
     address?: null | string;
 }
 
+export interface QueryAnswerSuspensionSwitch {
+    claim_release_btc: boolean;
+    release_incorrect_amount_btc: boolean;
+    request_mint_address: boolean;
+    request_release_btc: boolean;
+    verify_mint_tx: boolean;
+}
+
 export interface ViewingKeyError {
     msg: string;
 }
 
 export interface QueryMsg {
     mint_address?: QueryMsgMintAddress;
+    suspension_switch?: { [key: string]: any };
     config?: { [key: string]: any };
 }
 
@@ -509,12 +558,21 @@ const typeMap: any = {
                 js: 'request_release_btc',
                 typ: u(undefined, r('HandleAnswerRequestReleaseBtc')),
             },
+            {
+                json: 'release_btc_by_owner',
+                js: 'release_btc_by_owner',
+                typ: u(undefined, r('HandleAnswerReleaseBtcByOwner')),
+            },
         ],
         'any'
     ),
     HandleAnswerClaimReleasedBtc: o([{ json: 'tx', js: 'tx', typ: '' }], 'any'),
     HandleAnswerCreateViewingKey: o(
         [{ json: 'key', js: 'key', typ: '' }],
+        'any'
+    ),
+    HandleAnswerReleaseBtcByOwner: o(
+        [{ json: 'tx', js: 'tx', typ: '' }],
         'any'
     ),
     HandleAnswerReleaseIncorrectAmountBTC: o(
@@ -571,6 +629,21 @@ const typeMap: any = {
                 js: 'change_finance_admin',
                 typ: u(undefined, r('ChangeFinanceAdmin')),
             },
+            {
+                json: 'change_owner',
+                js: 'change_owner',
+                typ: u(undefined, r('ChangeOwner')),
+            },
+            {
+                json: 'set_suspension_switch',
+                js: 'set_suspension_switch',
+                typ: u(undefined, r('SetSuspensionSwitch')),
+            },
+            {
+                json: 'release_btc_by_owner',
+                js: 'release_btc_by_owner',
+                typ: u(undefined, r('HandleMsgReleaseBtcByOwner')),
+            },
         ],
         'any'
     ),
@@ -591,6 +664,7 @@ const typeMap: any = {
         ],
         'any'
     ),
+    ChangeOwner: o([{ json: 'new_owner', js: 'new_owner', typ: '' }], 'any'),
     HandleMsgClaimReleasedBtc: o(
         [
             { json: 'encryption_key', js: 'encryption_key', typ: '' },
@@ -687,6 +761,15 @@ const typeMap: any = {
         [{ json: 'entropy', js: 'entropy', typ: '' }],
         'any'
     ),
+    HandleMsgReleaseBtcByOwner: o(
+        [
+            { json: 'fee_per_vb', js: 'fee_per_vb', typ: 0 },
+            { json: 'max_input_length', js: 'max_input_length', typ: 0 },
+            { json: 'recipient_address', js: 'recipient_address', typ: '' },
+            { json: 'tx_value', js: 'tx_value', typ: 0 },
+        ],
+        'any'
+    ),
     HandleMsgReleaseIncorrectAmountBTC: o(
         [
             { json: 'fee_per_vb', js: 'fee_per_vb', typ: 0 },
@@ -719,6 +802,38 @@ const typeMap: any = {
         ],
         'any'
     ),
+    SetSuspensionSwitch: o(
+        [
+            {
+                json: 'suspension_switch',
+                js: 'suspension_switch',
+                typ: r('SetSuspensionSwitchSuspensionSwitch'),
+            },
+        ],
+        'any'
+    ),
+    SetSuspensionSwitchSuspensionSwitch: o(
+        [
+            { json: 'claim_release_btc', js: 'claim_release_btc', typ: true },
+            {
+                json: 'release_incorrect_amount_btc',
+                js: 'release_incorrect_amount_btc',
+                typ: true,
+            },
+            {
+                json: 'request_mint_address',
+                js: 'request_mint_address',
+                typ: true,
+            },
+            {
+                json: 'request_release_btc',
+                js: 'request_release_btc',
+                typ: true,
+            },
+            { json: 'verify_mint_tx', js: 'verify_mint_tx', typ: true },
+        ],
+        'any'
+    ),
     SetViewingKey: o([{ json: 'key', js: 'key', typ: '' }], 'any'),
     VerifyMintTx: o(
         [
@@ -735,7 +850,7 @@ const typeMap: any = {
     InitMsg: o(
         [
             { json: 'config', js: 'config', typ: r('InitMsgConfig') },
-            { json: 'prng_seed', js: 'prng_seed', typ: '' },
+            { json: 'entropy', js: 'entropy', typ: '' },
         ],
         'any'
     ),
@@ -753,6 +868,7 @@ const typeMap: any = {
                 typ: r('PurpleContractReference'),
             },
             { json: 'log', js: 'log', typ: r('PurpleContractReference') },
+            { json: 'owner', js: 'owner', typ: '' },
             { json: 'sbtc', js: 'sbtc', typ: r('PurpleContractReference') },
             { json: 'sfps', js: 'sfps', typ: r('PurpleContractReference') },
         ],
@@ -778,6 +894,11 @@ const typeMap: any = {
                 typ: u(undefined, r('QueryAnswerConfig')),
             },
             {
+                json: 'suspension_switch',
+                js: 'suspension_switch',
+                typ: u(undefined, r('QueryAnswerSuspensionSwitch')),
+            },
+            {
                 json: 'viewing_key_error',
                 js: 'viewing_key_error',
                 typ: u(undefined, r('ViewingKeyError')),
@@ -799,6 +920,7 @@ const typeMap: any = {
                 typ: r('FluffyContractReference'),
             },
             { json: 'log', js: 'log', typ: r('FluffyContractReference') },
+            { json: 'owner', js: 'owner', typ: '' },
             { json: 'sbtc', js: 'sbtc', typ: r('FluffyContractReference') },
             { json: 'sfps', js: 'sfps', typ: r('FluffyContractReference') },
         ],
@@ -815,6 +937,28 @@ const typeMap: any = {
         [{ json: 'address', js: 'address', typ: u(undefined, u(null, '')) }],
         'any'
     ),
+    QueryAnswerSuspensionSwitch: o(
+        [
+            { json: 'claim_release_btc', js: 'claim_release_btc', typ: true },
+            {
+                json: 'release_incorrect_amount_btc',
+                js: 'release_incorrect_amount_btc',
+                typ: true,
+            },
+            {
+                json: 'request_mint_address',
+                js: 'request_mint_address',
+                typ: true,
+            },
+            {
+                json: 'request_release_btc',
+                js: 'request_release_btc',
+                typ: true,
+            },
+            { json: 'verify_mint_tx', js: 'verify_mint_tx', typ: true },
+        ],
+        'any'
+    ),
     ViewingKeyError: o([{ json: 'msg', js: 'msg', typ: '' }], 'any'),
     QueryMsg: o(
         [
@@ -822,6 +966,11 @@ const typeMap: any = {
                 json: 'mint_address',
                 js: 'mint_address',
                 typ: u(undefined, r('QueryMsgMintAddress')),
+            },
+            {
+                json: 'suspension_switch',
+                js: 'suspension_switch',
+                typ: u(undefined, m('any')),
             },
             { json: 'config', js: 'config', typ: u(undefined, m('any')) },
         ],

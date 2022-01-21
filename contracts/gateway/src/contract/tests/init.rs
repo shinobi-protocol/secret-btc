@@ -13,7 +13,7 @@ fn test_init_sanity() {
     let env = helper::mock_env("instantiator", &[]);
 
     let init_msg = InitMsg {
-        prng_seed: Binary::from("lolz fun yay".as_bytes()),
+        entropy: Binary::from("lolz fun yay".as_bytes()),
         config: Config {
             btc_tx_values: hash_set! {100000000, 10000000}, //1BTC, 0.1BTC
             bitcoin_spv: ContractReference {
@@ -36,6 +36,7 @@ fn test_init_sanity() {
                 address: "log_addr".into(),
                 hash: "log_hash".into(),
             },
+            owner: "owner".into(),
         },
     };
     init(&mut deps, env, init_msg).unwrap();

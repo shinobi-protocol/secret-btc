@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, JsonSchema, Clone)]
 pub struct InitMsg {
     pub config: Config,
+    pub bitcoin_spv_base_reward: Uint128,
+    pub sfps_base_reward: Uint128,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq, Eq)]

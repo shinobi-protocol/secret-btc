@@ -1,8 +1,7 @@
-use crate::rng::gen_seed;
-use crate::state::chaindb::StorageChainDB;
-use crate::state::prng_seed::write_prng_seed;
+use crate::state::{StorageChainDB, PREFIX_PRNG};
 use cosmwasm_std::{Api, Env, Extern, InitResponse, Querier, StdError, StdResult, Storage};
 use sfps_lib::header_chain::HeaderChain;
+use shared_types::prng::init_prng;
 use shared_types::sfps::InitMsg;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -10,8 +9,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    let seed = gen_seed([0; 32], &env, msg.entropy.as_slice());
-    write_prng_seed(&mut deps.storage, &seed);
+    init_prng(&mut deps.storage, PREFIX_PRNG, &env, msg.entropy.as_slice())?;
 
     let chaindb = StorageChainDB::from_storage(&mut deps.storage);
     let mut header_chain = HeaderChain::new(chaindb);

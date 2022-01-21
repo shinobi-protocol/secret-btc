@@ -1,10 +1,32 @@
 {
-    "name": "sbtc",
-    "symbol": "SBTC",
-    "decimals": 8,
-    "config": {
-        "public_total_supply": true,
-        "enable_mint": true,
-        "enable_burn": true
+    "local": {
+        "name": "sbtc",
+        "symbol": "SBTC",
+        "decimals": 8,
+        "config": {
+            "public_total_supply": true,
+            "enable_mint": true,
+            "enable_burn": true
+        }
+    },
+    "testnet": {
+        "name": "sbtc",
+        "symbol": "SBTC",
+        "decimals": 8,
+        "config": {
+            "public_total_supply": true,
+            "enable_mint": true,
+            "enable_burn": true
+        }
+    },
+    "mainnet-test": {
+        "name": "test-sbtc",
+        "symbol": "TSBTC",
+        "decimals": 8,
+        "config": {
+            "public_total_supply": true,
+            "enable_mint": true,
+            "enable_burn": true
+        }
     }
 }

@@ -40,7 +40,7 @@ pub fn init_helper() -> Extern<MockStorage, MockApi, MockQuerier> {
     let env = mock_env("instantiator", &[]);
 
     let init_msg = InitMsg {
-        prng_seed: Binary::from("lolz fun yay".as_bytes()),
+        entropy: Binary::from("lolz fun yay".as_bytes()),
         config: Config {
             btc_tx_values: hash_set! {100000000, 10000000}, //1BTC, 0.1BTC
             bitcoin_spv: ContractReference {
@@ -63,6 +63,7 @@ pub fn init_helper() -> Extern<MockStorage, MockApi, MockQuerier> {
                 address: "log_address".into(),
                 hash: "log_hash".into(),
             },
+            owner: "owner".into(),
         },
     };
 

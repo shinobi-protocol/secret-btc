@@ -153,6 +153,18 @@
               "$ref": "#/definitions/SentToTreasuryData"
             }
           }
+        },
+        {
+          "description": "tag: 7",
+          "type": "object",
+          "required": [
+            "release_incorrect_amount_b_t_c"
+          ],
+          "properties": {
+            "release_incorrect_amount_b_t_c": {
+              "$ref": "#/definitions/ReleaseIncorrectAmountBTCData"
+            }
+          }
         }
       ]
     },
@@ -236,6 +248,35 @@
         },
         "request_key": {
           "$ref": "#/definitions/RequestKey"
+        },
+        "time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "txid": {
+          "type": "string"
+        }
+      }
+    },
+    "ReleaseIncorrectAmountBTCData": {
+      "type": "object",
+      "required": [
+        "amount",
+        "release_from",
+        "release_to",
+        "time",
+        "txid"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "release_from": {
+          "type": "string"
+        },
+        "release_to": {
+          "type": "string"
         },
         "time": {
           "type": "integer",

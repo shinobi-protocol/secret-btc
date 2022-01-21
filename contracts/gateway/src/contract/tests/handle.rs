@@ -5,6 +5,8 @@ use crate::state::bitcoin_utxo::{
 };
 use crate::state::config::read_config;
 use crate::state::mint_key::{read_mint_key, write_mint_key};
+use crate::state::suspension_switch::set_suspension_switch;
+use crate::state::suspension_switch::suspension_switch;
 use bitcoin::consensus::encode::{deserialize, serialize};
 use bitcoin::hash_types::Txid;
 use bitcoin::hashes::Hash;
@@ -26,7 +28,7 @@ pub struct TokenInfoResponse {
 #[test]
 fn test_request_mint_address_sanity() {
     let mut deps = init_helper();
-    // execute handle
+    //  handle
     let handle_msg = HandleMsg::RequestMintAddress {
         entropy: Binary::from(b"entropy"),
     };
@@ -65,6 +67,31 @@ fn test_request_mint_address_sanity() {
     );
     let address = Address::p2wpkh(&mint_key.public_key(), mint_key.network).unwrap();
     assert_eq!(address.to_string(), mint_address);
+}
+
+#[test]
+fn test_suspend_request_mint_address() {
+    let mut deps = init_helper();
+    //  handle
+    let handle_msg = HandleMsg::RequestMintAddress {
+        entropy: Binary::from(b"entropy"),
+    };
+    set_suspension_switch(
+        &mut deps.storage,
+        &SuspensionSwitch {
+            request_mint_address: true,
+            verify_mint_tx: false,
+            release_incorrect_amount_btc: false,
+            request_release_btc: false,
+            claim_release_btc: false,
+        },
+    )
+    .unwrap();
+    let err = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: contract error request mint address is being suspended"
+    );
 }
 
 #[test]
@@ -198,6 +225,7 @@ fn test_verify_mint_tx_sanity() {
                 "minter".into(),
                 tx_value.into(),
                 None,
+                None,
                 BLOCK_SIZE,
                 "sbtc_hash".into(),
                 "sbtc_address".into()
@@ -252,6 +280,33 @@ fn test_verify_mint_tx_sanity() {
             }
         );
     }
+}
+
+#[test]
+fn test_suspend_verify_mint_tx() {
+    let mut deps = init_helper();
+    //  handle
+    let handle_msg = HandleMsg::VerifyMintTx {
+        height: 0,
+        tx: Binary::from(&[]),
+        merkle_proof: bitcoin_spv::MerkleProofMsg::default(),
+    };
+    set_suspension_switch(
+        &mut deps.storage,
+        &SuspensionSwitch {
+            request_mint_address: false,
+            verify_mint_tx: true,
+            release_incorrect_amount_btc: false,
+            request_release_btc: false,
+            claim_release_btc: false,
+        },
+    )
+    .unwrap();
+    let err = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: contract error verify mint tx is being suspended"
+    );
 }
 
 #[test]
@@ -514,7 +569,7 @@ fn test_verify_mint_tx_invalid_tx_value() {
 }
 
 #[test]
-fn test_release_incorret_amount_btc() {
+fn test_release_incorrect_amount_btc() {
     let mut deps = init_helper();
     let canonical_minter = deps.api.canonical_address(&"minter".into()).unwrap();
     let config = read_config(&deps.storage, &deps.api).unwrap();
@@ -586,6 +641,53 @@ fn test_release_incorret_amount_btc() {
         recipient_address.script_pubkey()
     );
     assert_eq!(tx.output[0].value, 100000000 - 1 - 200 * 110);
+
+    contract_test_utils::assert_handle_response_message(
+        &response.messages[0],
+        "log_address",
+        "log_hash",
+        &log::HandleMsg::AddEvents {
+            events: vec![(
+                "minter".into(),
+                log::Event::ReleaseIncorrectAmountBTC(log::event::ReleaseIncorrectAmountBTCData {
+                    time: mock_timestamp().into(),
+                    amount: 99999999u64.into(),
+                    release_from: mint_address.to_string(),
+                    release_to: recipient_address.to_string(),
+                    txid: tx.txid().to_string(),
+                }),
+            )],
+        },
+    )
+}
+
+#[test]
+fn test_suspend_release_incorrect_amount_btc() {
+    let mut deps = init_helper();
+    //  handle
+    let handle_msg = HandleMsg::ReleaseIncorrectAmountBTC {
+        height: 0,
+        tx: Binary::from(&[]),
+        merkle_proof: bitcoin_spv::MerkleProofMsg::default(),
+        recipient_address: String::default(),
+        fee_per_vb: 0,
+    };
+    set_suspension_switch(
+        &mut deps.storage,
+        &SuspensionSwitch {
+            request_mint_address: false,
+            verify_mint_tx: false,
+            release_incorrect_amount_btc: true,
+            request_release_btc: false,
+            claim_release_btc: false,
+        },
+    )
+    .unwrap();
+    let err = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: contract error release incorrect amount btc is being suspended"
+    );
 }
 
 #[test]
@@ -632,6 +734,7 @@ fn test_request_release_btc_sanity() {
             snip20::burn_from_msg(
                 "releaser".into(),
                 tx_value.into(),
+                None,
                 None,
                 BLOCK_SIZE,
                 "sbtc_hash".into(),
@@ -688,7 +791,33 @@ fn test_request_release_btc_sanity() {
 }
 
 #[test]
-fn test_execute_release_btc_sanity() {
+fn test_suspend_request_release_btc() {
+    let mut deps = init_helper();
+    //  handle
+    let handle_msg = HandleMsg::RequestReleaseBtc {
+        entropy: Binary::from(&[]),
+        amount: 0,
+    };
+    set_suspension_switch(
+        &mut deps.storage,
+        &SuspensionSwitch {
+            request_mint_address: false,
+            verify_mint_tx: false,
+            release_incorrect_amount_btc: false,
+            request_release_btc: true,
+            claim_release_btc: false,
+        },
+    )
+    .unwrap();
+    let err = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: contract error request release btc is being suspended"
+    );
+}
+
+#[test]
+fn test_claim_release_btc_sanity() {
     let mut deps = init_helper();
     let mut thread_rng = thread_rng();
     // create random mint key
@@ -786,13 +915,20 @@ fn test_execute_release_btc_sanity() {
         _ => panic!("unexpected"),
     };
     // assert signature is valid
-    // mint_tx.output[0].script_pubkey.verify(0, 100000000, &bitcoin::consensus::encode::serialize(&tx)).unwrap();
+    #[cfg(feature = "bitcoinconsensus")]
+    mint_tx.output[0]
+        .script_pubkey
+        .verify(
+            0,
+            bitcoin::Amount::from_sat(100000000),
+            &bitcoin::consensus::encode::serialize(&tx),
+        )
+        .unwrap();
     assert_eq!(tx.output.len(), 1);
     assert_eq!(
         tx.output[0].script_pubkey,
         recipient_address.script_pubkey()
     );
-    assert_eq!(tx.get_vsize(), 110);
     assert_eq!(tx.output[0].value, 100000000 - 200 * 110);
 
     assert_eq!(response.messages.len(), 1);
@@ -812,4 +948,153 @@ fn test_execute_release_btc_sanity() {
         .to_cosmos_msg("log_hash".into(), "log_address".into(), None)
         .unwrap()
     );
+}
+
+#[test]
+fn test_suspend_claim_release_btc() {
+    let mut deps = init_helper();
+    //  handle
+    let handle_msg = HandleMsg::ClaimReleasedBtc {
+        tx_result_proof: sfps::TxResultProof::default(),
+        header_hash_index: 0,
+        encryption_key: Binary::from(&[]),
+        recipient_address: String::default(),
+        fee_per_vb: 0,
+    };
+    set_suspension_switch(
+        &mut deps.storage,
+        &SuspensionSwitch {
+            request_mint_address: false,
+            verify_mint_tx: false,
+            release_incorrect_amount_btc: false,
+            request_release_btc: false,
+            claim_release_btc: true,
+        },
+    )
+    .unwrap();
+    let err = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: contract error claim release btc is being suspended"
+    );
+}
+
+#[test]
+fn test_change_owner() {
+    let mut deps = init_helper();
+    let msg = HandleMsg::ChangeOwner {
+        new_owner: "new_owner".into(),
+    };
+    let err = handle(&mut deps, helper::mock_env("not_owner", &[]), msg.clone()).unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: contract error not owner");
+    handle(&mut deps, helper::mock_env("owner", &[]), msg).unwrap();
+    let config = read_config(&deps.storage, &deps.api).unwrap();
+    assert_eq!(config.owner, "new_owner".into());
+}
+
+#[test]
+fn test_suspension_switch() {
+    let mut deps = init_helper();
+    let mut switch = suspension_switch(&deps.storage).unwrap();
+    assert_eq!(
+        switch,
+        SuspensionSwitch {
+            request_mint_address: false,
+            verify_mint_tx: false,
+            release_incorrect_amount_btc: false,
+            request_release_btc: false,
+            claim_release_btc: false,
+        }
+    );
+    switch.verify_mint_tx = true;
+    set_suspension_switch(&mut deps.storage, &switch).unwrap();
+    assert_eq!(suspension_switch(&deps.storage).unwrap(), switch);
+}
+
+#[test]
+fn test_release_btc_by_owner() {
+    let mut deps = init_helper();
+    let mut thread_rng = thread_rng();
+    let recipient_address = {
+        let recipient_priv_key = PrivateKey {
+            compressed: true,
+            network: Network::Regtest,
+            key: bitcoin::secp256k1::SecretKey::random(&mut thread_rng),
+        };
+        Address::p2wpkh(&recipient_priv_key.public_key(), recipient_priv_key.network).unwrap()
+    };
+
+    let mut mint_txs = Vec::with_capacity(10);
+    let mut queue = UtxoQueue::from_storage(&mut deps.storage, 100000000);
+    for _ in 0..10 {
+        // create random mint key
+        let sign_key = PrivateKey {
+            compressed: true,
+            network: Network::Regtest,
+            key: SecretKey::random(&mut thread_rng),
+        };
+        let mint_address = Address::p2wpkh(&sign_key.public_key(), sign_key.network).unwrap();
+
+        mint_txs.push(
+            // mint tx
+            Transaction {
+                version: 2,
+                lock_time: 0,
+                input: vec![],
+                output: vec![TxOut {
+                    value: 100000000,
+                    script_pubkey: mint_address.script_pubkey(),
+                }],
+            },
+        );
+
+        // set release request
+        let utxo = Utxo {
+            txid: mint_txs.last().unwrap().txid(),
+            vout: 0,
+            key: sign_key.key.serialize(),
+        };
+        queue.enqueue(utxo).unwrap();
+    }
+
+    let response = handle(
+        &mut deps,
+        helper::mock_env("owner", &[]),
+        HandleMsg::ReleaseBtcByOwner {
+            tx_value: 100000000,
+            max_input_length: 100,
+            recipient_address: recipient_address.to_string(),
+            fee_per_vb: 200,
+        },
+    )
+    .unwrap();
+    let tx: Transaction = match from_binary(&response.data.unwrap()).unwrap() {
+        HandleAnswer::ReleaseBtcByOwner { tx } => deserialize(tx.as_slice()).unwrap(),
+        _ => panic!("unexpected"),
+    };
+    #[cfg(feature = "bitcoinconsensus")]
+    for i in 0..10 {
+        // assert signature is valid
+        mint_txs[i].output[0]
+            .script_pubkey
+            .verify(
+                i,
+                bitcoin::Amount::from_sat(100000000),
+                &bitcoin::consensus::encode::serialize(&tx),
+            )
+            .unwrap();
+    }
+    assert_eq!(tx.output.len(), 1);
+    assert_eq!(
+        tx.output[0].script_pubkey,
+        recipient_address.script_pubkey()
+    );
+    // the tx vsize caluclated by the contract is higher than the actual one.
+    let small_length_signature_input_count = tx
+        .input
+        .iter()
+        .filter(|input| input.witness[0].len() == 71)
+        .count();
+    let calculated_vsize = ((tx.get_weight() + small_length_signature_input_count + 3) / 4) as u64;
+    assert_eq!(tx.output[0].value, 100000000 * 10 - 200 * calculated_vsize);
 }

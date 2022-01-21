@@ -1,30 +1,15 @@
 // To parse this data:
 //
-//   import { Convert, CustomQueryAnswer, HandleMsgForCustomHandleMsg, InitMsg, QueryMsgForCustomQueryMsg } from "./file";
+//   import { Convert, CustomQueryAnswer, HandleMsgForCustomHandleMsg, InitMsg, QueryAnswer, QueryMsgForCustomQueryMsg } from "./file";
 //
-//   const arrayOfOperation = Convert.toArrayOfOperation(json);
 //   const customQueryAnswer = Convert.toCustomQueryAnswer(json);
 //   const handleMsgForCustomHandleMsg = Convert.toHandleMsgForCustomHandleMsg(json);
 //   const initMsg = Convert.toInitMsg(json);
+//   const queryAnswer = Convert.toQueryAnswer(json);
 //   const queryMsgForCustomQueryMsg = Convert.toQueryMsgForCustomQueryMsg(json);
 //
 // These functions will throw an error if the JSON doesn't
 // match the expected interface, even if the JSON is valid.
-
-export interface ArrayOfOperation {
-    send?: Send;
-    receive_from?: ReceiveFrom;
-}
-
-export interface ReceiveFrom {
-    amount: string;
-    from: string;
-}
-
-export interface Send {
-    amount: string;
-    to: string;
-}
 
 export interface CustomQueryAnswer {
     config?: CustomQueryAnswerConfig;
@@ -76,11 +61,13 @@ export interface NewFinanceAdminObject {
 }
 
 export interface MintBitcoinSPVReward {
+    best_block_time: number;
     best_height: number;
     executer: string;
 }
 
 export interface MintSFPSReward {
+    best_block_time: number;
     best_height: number;
     executer: string;
 }
@@ -98,7 +85,9 @@ export interface SendMintReward {
 }
 
 export interface InitMsg {
+    bitcoin_spv_base_reward: string;
     config: InitMsgConfig;
+    sfps_base_reward: string;
 }
 
 export interface InitMsgConfig {
@@ -115,9 +104,33 @@ export interface FluffyContractReference {
     hash: string;
 }
 
+export interface QueryAnswer {
+    mint_reward?: Operation[];
+    release_fee?: Operation[];
+    latest_bitcoin_s_p_v_reward?: string;
+    latest_s_f_p_s_reward?: string;
+}
+
+export interface Operation {
+    send?: Send;
+    receive_from?: ReceiveFrom;
+}
+
+export interface ReceiveFrom {
+    amount: string;
+    from: string;
+}
+
+export interface Send {
+    amount: string;
+    to: string;
+}
+
 export interface QueryMsgForCustomQueryMsg {
     mint_reward?: MintReward;
     release_fee?: ReleaseFee;
+    latest_bitcoin_s_p_v_reward?: { [key: string]: any };
+    latest_s_f_p_s_reward?: { [key: string]: any };
     custom?: QueryMsgForCustomQueryMsgCustom;
 }
 
@@ -145,14 +158,6 @@ export interface ReleaseFee {
 // Converts JSON strings to/from your types
 // and asserts the results of JSON.parse at runtime
 export class Convert {
-    public static toArrayOfOperation(json: string): ArrayOfOperation[] {
-        return cast(JSON.parse(json), a(r('ArrayOfOperation')));
-    }
-
-    public static arrayOfOperationToJson(value: ArrayOfOperation[]): string {
-        return JSON.stringify(uncast(value, a(r('ArrayOfOperation'))), null, 2);
-    }
-
     public static toCustomQueryAnswer(json: string): CustomQueryAnswer {
         return cast(JSON.parse(json), r('CustomQueryAnswer'));
     }
@@ -183,6 +188,14 @@ export class Convert {
 
     public static initMsgToJson(value: InitMsg): string {
         return JSON.stringify(uncast(value, r('InitMsg')), null, 2);
+    }
+
+    public static toQueryAnswer(json: string): QueryAnswer {
+        return cast(JSON.parse(json), r('QueryAnswer'));
+    }
+
+    public static queryAnswerToJson(value: QueryAnswer): string {
+        return JSON.stringify(uncast(value, r('QueryAnswer')), null, 2);
     }
 
     public static toQueryMsgForCustomQueryMsg(
@@ -354,31 +367,6 @@ function r(name: string) {
 }
 
 const typeMap: any = {
-    ArrayOfOperation: o(
-        [
-            { json: 'send', js: 'send', typ: u(undefined, r('Send')) },
-            {
-                json: 'receive_from',
-                js: 'receive_from',
-                typ: u(undefined, r('ReceiveFrom')),
-            },
-        ],
-        'any'
-    ),
-    ReceiveFrom: o(
-        [
-            { json: 'amount', js: 'amount', typ: '' },
-            { json: 'from', js: 'from', typ: '' },
-        ],
-        'any'
-    ),
-    Send: o(
-        [
-            { json: 'amount', js: 'amount', typ: '' },
-            { json: 'to', js: 'to', typ: '' },
-        ],
-        'any'
-    ),
     CustomQueryAnswer: o(
         [
             {
@@ -489,6 +477,7 @@ const typeMap: any = {
     ),
     MintBitcoinSPVReward: o(
         [
+            { json: 'best_block_time', js: 'best_block_time', typ: 0 },
             { json: 'best_height', js: 'best_height', typ: 0 },
             { json: 'executer', js: 'executer', typ: '' },
         ],
@@ -496,6 +485,7 @@ const typeMap: any = {
     ),
     MintSFPSReward: o(
         [
+            { json: 'best_block_time', js: 'best_block_time', typ: 0 },
             { json: 'best_height', js: 'best_height', typ: 0 },
             { json: 'executer', js: 'executer', typ: '' },
         ],
@@ -518,7 +508,15 @@ const typeMap: any = {
         'any'
     ),
     InitMsg: o(
-        [{ json: 'config', js: 'config', typ: r('InitMsgConfig') }],
+        [
+            {
+                json: 'bitcoin_spv_base_reward',
+                js: 'bitcoin_spv_base_reward',
+                typ: '',
+            },
+            { json: 'config', js: 'config', typ: r('InitMsgConfig') },
+            { json: 'sfps_base_reward', js: 'sfps_base_reward', typ: '' },
+        ],
         'any'
     ),
     InitMsgConfig: o(
@@ -551,6 +549,56 @@ const typeMap: any = {
         ],
         'any'
     ),
+    QueryAnswer: o(
+        [
+            {
+                json: 'mint_reward',
+                js: 'mint_reward',
+                typ: u(undefined, a(r('Operation'))),
+            },
+            {
+                json: 'release_fee',
+                js: 'release_fee',
+                typ: u(undefined, a(r('Operation'))),
+            },
+            {
+                json: 'latest_bitcoin_s_p_v_reward',
+                js: 'latest_bitcoin_s_p_v_reward',
+                typ: u(undefined, ''),
+            },
+            {
+                json: 'latest_s_f_p_s_reward',
+                js: 'latest_s_f_p_s_reward',
+                typ: u(undefined, ''),
+            },
+        ],
+        'any'
+    ),
+    Operation: o(
+        [
+            { json: 'send', js: 'send', typ: u(undefined, r('Send')) },
+            {
+                json: 'receive_from',
+                js: 'receive_from',
+                typ: u(undefined, r('ReceiveFrom')),
+            },
+        ],
+        'any'
+    ),
+    ReceiveFrom: o(
+        [
+            { json: 'amount', js: 'amount', typ: '' },
+            { json: 'from', js: 'from', typ: '' },
+        ],
+        'any'
+    ),
+    Send: o(
+        [
+            { json: 'amount', js: 'amount', typ: '' },
+            { json: 'to', js: 'to', typ: '' },
+        ],
+        'any'
+    ),
     QueryMsgForCustomQueryMsg: o(
         [
             {
@@ -562,6 +610,16 @@ const typeMap: any = {
                 json: 'release_fee',
                 js: 'release_fee',
                 typ: u(undefined, r('ReleaseFee')),
+            },
+            {
+                json: 'latest_bitcoin_s_p_v_reward',
+                js: 'latest_bitcoin_s_p_v_reward',
+                typ: u(undefined, m('any')),
+            },
+            {
+                json: 'latest_s_f_p_s_reward',
+                js: 'latest_s_f_p_s_reward',
+                typ: u(undefined, m('any')),
             },
             {
                 json: 'custom',

@@ -209,6 +209,81 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "required": [
+        "change_owner"
+      ],
+      "properties": {
+        "change_owner": {
+          "type": "object",
+          "required": [
+            "new_owner"
+          ],
+          "properties": {
+            "new_owner": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "set_suspension_switch"
+      ],
+      "properties": {
+        "set_suspension_switch": {
+          "type": "object",
+          "required": [
+            "suspension_switch"
+          ],
+          "properties": {
+            "suspension_switch": {
+              "$ref": "#/definitions/SuspensionSwitch"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "release_btc_by_owner"
+      ],
+      "properties": {
+        "release_btc_by_owner": {
+          "type": "object",
+          "required": [
+            "fee_per_vb",
+            "max_input_length",
+            "recipient_address",
+            "tx_value"
+          ],
+          "properties": {
+            "fee_per_vb": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "max_input_length": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "recipient_address": {
+              "type": "string"
+            },
+            "tx_value": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {
@@ -409,6 +484,33 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0.0
+        }
+      }
+    },
+    "SuspensionSwitch": {
+      "type": "object",
+      "required": [
+        "claim_release_btc",
+        "release_incorrect_amount_btc",
+        "request_mint_address",
+        "request_release_btc",
+        "verify_mint_tx"
+      ],
+      "properties": {
+        "claim_release_btc": {
+          "type": "boolean"
+        },
+        "release_incorrect_amount_btc": {
+          "type": "boolean"
+        },
+        "request_mint_address": {
+          "type": "boolean"
+        },
+        "request_release_btc": {
+          "type": "boolean"
+        },
+        "verify_mint_tx": {
+          "type": "boolean"
         }
       }
     },

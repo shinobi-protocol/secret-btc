@@ -30,16 +30,17 @@ rpath = false
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
+bitcoinconsensus = ["bitcoin/bitcoinconsensus"]
 
 [dependencies]
 base64 = "0.12.3"
 bitcoin = {path = "../libs/pure-rust-bitcoin", features = ["use-serde"]}
 bitcoin_header_chain = {path = "../libs/bitcoin_header_chain"}
-cosmwasm-std = {git = "https://github.com/enigmampc/SecretNetwork", tag = "v1.0.4-debug-print"}
-cosmwasm-storage = {git = "https://github.com/enigmampc/SecretNetwork", tag = "v1.0.4-debug-print"}
+cosmwasm-std = {package = "secret-cosmwasm-std", version = "0.10.0"}
+cosmwasm-storage = {package = "secret-cosmwasm-storage", version = "0.10.0"}
 rand = {version = "0.7.3"}
 schemars = "0.7"
-secret-toolkit = {git = "https://github.com/enigmampc/secret-toolkit", rev = "v0.1.1-debug-print"}
+secret-toolkit = "0.2.0"
 serde = {version = "1.0.103", default-features = false, features = ["derive"]}
 shared_types = {path = "../libs/shared_types", features = ["bitcoin_spv", "sfps", "finance_admin", "gateway"]}
 subtle = {version = "2.2.3", default-features = false}

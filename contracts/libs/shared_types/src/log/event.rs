@@ -20,6 +20,8 @@ pub enum Event {
     ReleaseCompleted(ReleaseCompletedData),
     /// tag: 6
     SentToTreasury(SentToTreasuryData),
+    /// tag: 7
+    ReleaseIncorrectAmountBTC(ReleaseIncorrectAmountBTCData),
 }
 
 /// contracts or user to submit event.
@@ -38,7 +40,8 @@ impl Event {
             Self::MintStarted(_)
             | Self::MintCompleted(_)
             | Self::ReleaseStarted(_)
-            | Self::ReleaseCompleted(_) => EventSource::Gateway,
+            | Self::ReleaseCompleted(_)
+            | Self::ReleaseIncorrectAmountBTC(_) => EventSource::Gateway,
             Self::ReceivedFromTreasury(_) | Self::SentToTreasury(_) => EventSource::Treasury,
             Self::ReleaseRequestConfirmed(_) => EventSource::User,
         }
@@ -94,6 +97,15 @@ pub struct SentToTreasuryData {
     pub amount: Uint128,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, schemars::JsonSchema)]
+pub struct ReleaseIncorrectAmountBTCData {
+    pub time: u64,
+    pub amount: Uint128,
+    pub release_from: String,
+    pub release_to: String,
+    pub txid: String,
+}
+
 /// Use Original Serialization for serialize/deserialize Event value while avoiding floating point failure.
 /// It serializes inner struct of Enum value in Bincode2, and append event_type byte.
 /// When deserialization, it read the last byte as event_type byte and deserialize other byte into inner struct of Enum value.
@@ -112,6 +124,7 @@ pub mod serde_event_on_storage {
             Event::ReleaseRequestConfirmed(data) => (4, Bincode2::serialize(data)?),
             Event::ReleaseCompleted(data) => (5, Bincode2::serialize(data)?),
             Event::SentToTreasury(data) => (6, Bincode2::serialize(data)?),
+            Event::ReleaseIncorrectAmountBTC(data) => (7, Bincode2::serialize(data)?),
         };
         let mut serialized = event_data;
         serialized.push(event_type);
@@ -134,6 +147,9 @@ pub mod serde_event_on_storage {
             )?)),
             5 => Ok(Event::ReleaseCompleted(Bincode2::deserialize(&event_data)?)),
             6 => Ok(Event::SentToTreasury(Bincode2::deserialize(&event_data)?)),
+            7 => Ok(Event::ReleaseIncorrectAmountBTC(Bincode2::deserialize(
+                &event_data,
+            )?)),
             x => Err(StdError::generic_err(format!(
                 "unexpected event type {}",
                 x
@@ -216,6 +232,13 @@ pub mod serde_event_on_storage {
                 Event::SentToTreasury(SentToTreasuryData {
                     time: 200000,
                     amount: 20u64.into(),
+                }),
+                Event::ReleaseIncorrectAmountBTC(ReleaseIncorrectAmountBTCData {
+                    time: 100000,
+                    amount: 10u64.into(),
+                    release_from: "release_from".into(),
+                    release_to: "release_to".into(),
+                    txid: "txid".into(),
                 }),
             ];
 

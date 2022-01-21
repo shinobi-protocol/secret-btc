@@ -57,6 +57,15 @@ class BitcoinSPVClient extends ContractClient<
         return Buffer.from(result.best_header_hash!.hash, 'hex');
     }
 
+    public async blockHeader(height: number): Promise<Block> {
+        const result = await this.query({
+            block_header: { height },
+        });
+        return Block.fromBuffer(
+            Buffer.from(result.block_header!.header, 'base64')
+        );
+    }
+
     public async verifyMerkleProof(
         height: number,
         tx: Transaction,

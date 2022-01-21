@@ -33,3 +33,5 @@ node_modules
 deploy_reports
 
 .priv_mnemonic
+# Local Netlify folder
+.netlify

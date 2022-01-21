@@ -112,7 +112,7 @@ const job = async (
     await waitForTxIncludedInABlock(() => {
         return tendermintSyncClient.syncTendermintHeaders();
     }, tendermintSyncClient.shurikenClient.signingCosmWasmClient);
-    scheduleJob(addSeconds(new Date(), 10 * 1000), (): void => {
+    scheduleJob(addSeconds(new Date(), 10), (): void => {
         void job(btcSyncClient, tendermintSyncClient);
     });
 };
@@ -136,18 +136,21 @@ const waitForTxIncludedInABlock = async (
             console.log('wait for tx included in a block');
             const fiveSeconds = 5000;
             const tenMinutes = 600000;
-            for (
-                let time = 0;
-                time < tenMinutes &&
-                currentSequence ===
-                    (await signingCosmWasmClient.getAccount())!.sequence;
-                time += fiveSeconds
-            ) {
+            for (let time = 0; time < tenMinutes; time += fiveSeconds) {
+                console.log('wait time', time, '/', tenMinutes);
                 await new Promise((resolve) =>
                     setTimeout(resolve, fiveSeconds)
                 );
+                if (
+                    currentSequence !=
+                    (await signingCosmWasmClient.getAccount())!.sequence
+                ) {
+                    console.log('tx has been included');
+                    break;
+                }
             }
         } else {
+            console.error('unexpected err', e);
             throw e;
         }
     }
@@ -189,6 +192,7 @@ const main = async () => {
         shurikenClient,
         sfpsClient,
         tendermintClient,
+        10,
         logger
     );
     await job(btcSyncClient, tendermintSyncClient);

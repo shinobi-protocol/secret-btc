@@ -10,7 +10,7 @@ export interface ContractReference {
 export interface DeployReport {
     timestamp: number;
     gitCommitHash: string;
-    snNetwork: string;
+    environment: string;
     deployerAddress: string;
     contracts: Record<string, ContractDeployReport>;
 }
@@ -28,19 +28,19 @@ const DEPLOY_REPORTS_PATH = '../deploy_reports';
 
 export class ContractDeployer {
     public client: SigningCosmWasmClient;
-    public snNetwork: string;
+    public environment: string;
     public timestamp: number;
     public gitCommitHash: string;
     public contractDeployReports: Record<string, ContractDeployReport> = {};
 
     constructor(
         client: SigningCosmWasmClient,
-        snNetwork: string,
+        environment: string,
         timestamp: number,
         gitCommitHash: string
     ) {
         this.client = client;
-        this.snNetwork = snNetwork;
+        this.environment = environment;
         this.timestamp = timestamp;
         this.gitCommitHash = gitCommitHash;
     }
@@ -48,7 +48,7 @@ export class ContractDeployer {
     public static async init(
         mnemonic: string,
         lcdUrl: string,
-        snNetwork: string,
+        environment: string,
         gitCommitHash: string,
         customFees?: Partial<FeeTable>
     ): Promise<ContractDeployer> {
@@ -61,7 +61,7 @@ export class ContractDeployer {
         await waitForNode(client, deployerAddress);
         return new ContractDeployer(
             client,
-            snNetwork,
+            environment,
             Math.floor(Date.now() / 1000),
             gitCommitHash
         );
@@ -77,6 +77,7 @@ export class ContractDeployer {
         console.log('Uploading contract...');
         const wasm = this.loadWasm(contractDir);
         const uploadReceipt = await this.client.upload(wasm, {});
+        await this.wait();
         console.log('Uploaded');
 
         const codeId = uploadReceipt.codeId;
@@ -92,8 +93,9 @@ export class ContractDeployer {
             initMsg,
             label
         );
+        await this.wait();
         console.log('Instantiated');
-        console.log('Contract deployed: ', initReceipt);
+        console.log('Contract deployed: ', { initReceipt, codeId, hash });
         console.groupEnd();
 
         const report = {
@@ -123,6 +125,7 @@ export class ContractDeployer {
         await this.client.execute(contractInfo.address, msg);
         console.log('Executed');
         console.groupEnd();
+        await this.wait();
     }
 
     public exportDeployReport() {
@@ -143,16 +146,20 @@ export class ContractDeployer {
     }
 
     private buildContractLabel(contractName: string): string {
-        return `Shinobi_${this.snNetwork}_${contractName}_${this.gitCommitHash}_${this.timestamp}`;
+        return `Shinobi_${this.environment}_${contractName}_${this.gitCommitHash}_${this.timestamp}`;
     }
 
     private buildDeployReport(): DeployReport {
         return {
             timestamp: this.timestamp,
             gitCommitHash: this.gitCommitHash,
-            snNetwork: this.snNetwork,
+            environment: this.environment,
             deployerAddress: this.client.senderAddress,
             contracts: this.contractDeployReports,
         };
+    }
+
+    private async wait(): Promise<void> {
+        return new Promise((resolve) => setTimeout(resolve, 5000));
     }
 }
