@@ -43,6 +43,8 @@ export interface AddEvents {
  * tag: 5
  *
  * tag: 6
+ *
+ * tag: 7
  */
 export interface EventObject {
     mint_started?: EventMintStarted;
@@ -52,6 +54,7 @@ export interface EventObject {
     release_request_confirmed?: EventReleaseRequestConfirmed;
     release_completed?: EventReleaseCompleted;
     sent_to_treasury?: EventSentToTreasury;
+    release_incorrect_amount_b_t_c?: EventReleaseIncorrectAmountBTC;
 }
 
 export interface EventMintCompleted {
@@ -74,6 +77,14 @@ export interface EventReceivedFromTreasury {
 export interface EventReleaseCompleted {
     fee_per_vb: number;
     request_key: number[];
+    time: number;
+    txid: string;
+}
+
+export interface EventReleaseIncorrectAmountBTC {
+    amount: string;
+    release_from: string;
+    release_to: string;
     time: number;
     txid: string;
 }
@@ -153,6 +164,8 @@ export interface QueryAnswerLog {
  * tag: 5
  *
  * tag: 6
+ *
+ * tag: 7
  */
 export interface Event {
     mint_started?: EventMintStartedObject;
@@ -162,6 +175,7 @@ export interface Event {
     release_request_confirmed?: EventReleaseRequestConfirmedObject;
     release_completed?: EventReleaseCompletedObject;
     sent_to_treasury?: EventSentToTreasuryObject;
+    release_incorrect_amount_b_t_c?: EventReleaseIncorrectAmountBTCObject;
 }
 
 export interface EventMintCompletedObject {
@@ -184,6 +198,14 @@ export interface EventReceivedFromTreasuryObject {
 export interface EventReleaseCompletedObject {
     fee_per_vb: number;
     request_key: number[];
+    time: number;
+    txid: string;
+}
+
+export interface EventReleaseIncorrectAmountBTCObject {
+    amount: string;
+    release_from: string;
+    release_to: string;
     time: number;
     txid: string;
 }
@@ -482,6 +504,11 @@ const typeMap: any = {
                 js: 'sent_to_treasury',
                 typ: u(undefined, r('EventSentToTreasury')),
             },
+            {
+                json: 'release_incorrect_amount_b_t_c',
+                js: 'release_incorrect_amount_b_t_c',
+                typ: u(undefined, r('EventReleaseIncorrectAmountBTC')),
+            },
         ],
         'any'
     ),
@@ -512,6 +539,16 @@ const typeMap: any = {
         [
             { json: 'fee_per_vb', js: 'fee_per_vb', typ: 0 },
             { json: 'request_key', js: 'request_key', typ: a(0) },
+            { json: 'time', js: 'time', typ: 0 },
+            { json: 'txid', js: 'txid', typ: '' },
+        ],
+        'any'
+    ),
+    EventReleaseIncorrectAmountBTC: o(
+        [
+            { json: 'amount', js: 'amount', typ: '' },
+            { json: 'release_from', js: 'release_from', typ: '' },
+            { json: 'release_to', js: 'release_to', typ: '' },
             { json: 'time', js: 'time', typ: 0 },
             { json: 'txid', js: 'txid', typ: '' },
         ],
@@ -643,6 +680,11 @@ const typeMap: any = {
                 js: 'sent_to_treasury',
                 typ: u(undefined, r('EventSentToTreasuryObject')),
             },
+            {
+                json: 'release_incorrect_amount_b_t_c',
+                js: 'release_incorrect_amount_b_t_c',
+                typ: u(undefined, r('EventReleaseIncorrectAmountBTCObject')),
+            },
         ],
         'any'
     ),
@@ -673,6 +715,16 @@ const typeMap: any = {
         [
             { json: 'fee_per_vb', js: 'fee_per_vb', typ: 0 },
             { json: 'request_key', js: 'request_key', typ: a(0) },
+            { json: 'time', js: 'time', typ: 0 },
+            { json: 'txid', js: 'txid', typ: '' },
+        ],
+        'any'
+    ),
+    EventReleaseIncorrectAmountBTCObject: o(
+        [
+            { json: 'amount', js: 'amount', typ: '' },
+            { json: 'release_from', js: 'release_from', typ: '' },
+            { json: 'release_to', js: 'release_to', typ: '' },
             { json: 'time', js: 'time', typ: 0 },
             { json: 'txid', js: 'txid', typ: '' },
         ],

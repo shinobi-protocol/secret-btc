@@ -59,6 +59,28 @@
     {
       "type": "object",
       "required": [
+        "latest_bitcoin_s_p_v_reward"
+      ],
+      "properties": {
+        "latest_bitcoin_s_p_v_reward": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "latest_s_f_p_s_reward"
+      ],
+      "properties": {
+        "latest_s_f_p_s_reward": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
         "custom"
       ],
       "properties": {

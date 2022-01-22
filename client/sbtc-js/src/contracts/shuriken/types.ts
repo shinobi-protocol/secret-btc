@@ -43,17 +43,13 @@ export interface SFPSProxy {
 }
 
 export interface SFPSHandleMsg {
-    add_light_block?: AddLightBlock;
-    add_entropy?: AddEntropy;
+    add_light_blocks: AddLightBlocks;
 }
 
-export interface AddEntropy {
-    entropy: string;
-}
-
-export interface AddLightBlock {
+export interface AddLightBlocks {
     current_highest_header: Header;
-    light_block: LightBlock;
+    entropy: string;
+    light_blocks: LightBlock[];
 }
 
 export interface Header {
@@ -475,27 +471,26 @@ const typeMap: any = {
     SFPSHandleMsg: o(
         [
             {
-                json: 'add_light_block',
-                js: 'add_light_block',
-                typ: u(undefined, r('AddLightBlock')),
-            },
-            {
-                json: 'add_entropy',
-                js: 'add_entropy',
-                typ: u(undefined, r('AddEntropy')),
+                json: 'add_light_blocks',
+                js: 'add_light_blocks',
+                typ: r('AddLightBlocks'),
             },
         ],
         'any'
     ),
-    AddEntropy: o([{ json: 'entropy', js: 'entropy', typ: '' }], 'any'),
-    AddLightBlock: o(
+    AddLightBlocks: o(
         [
             {
                 json: 'current_highest_header',
                 js: 'current_highest_header',
                 typ: r('Header'),
             },
-            { json: 'light_block', js: 'light_block', typ: r('LightBlock') },
+            { json: 'entropy', js: 'entropy', typ: '' },
+            {
+                json: 'light_blocks',
+                js: 'light_blocks',
+                typ: a(r('LightBlock')),
+            },
         ],
         'any'
     ),

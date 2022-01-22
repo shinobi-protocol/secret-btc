@@ -1,5 +1,5 @@
 {
-    "regtest": {
+    "local": {
         "bitcoin_network": "regtest",
         "confirmation": 6
     },
@@ -7,8 +7,16 @@
         "bitcoin_network": "testnet",
         "confirmation": 1,
         "initial_header": {
-            "height": 2104704,
-            "header": "BAAAIHsNlzdgHW8U9ZVjn+rb78F1MlalCS8QdyAAAAAAAAAA59IOwK0LGyrQWOxIvVYCqhMm6X4GaAbXSpclYuJmcvvbnJhhnOI2GW7jmXs="
+            "height": 2134944,
+            "header": "AABgIIMBl3QSUJXhF5g4vkrVpZQB3PGQm5sPOzEAAAAAAAAApradMvj3pDmKdvLdWHVTJ1BkxtwyXLUykkuzBnxJ4v1J5thhKsAAGnEfAKM="
+        }
+    },
+    "mainnet-test": {
+        "bitcoin_network": "testnet",
+        "confirmation": 1,
+        "initial_header": {
+            "height": 2134944,
+            "header": "AABgIIMBl3QSUJXhF5g4vkrVpZQB3PGQm5sPOzEAAAAAAAAApradMvj3pDmKdvLdWHVTJ1BkxtwyXLUykkuzBnxJ4v1J5thhKsAAGnEfAKM="
         }
     }
 }

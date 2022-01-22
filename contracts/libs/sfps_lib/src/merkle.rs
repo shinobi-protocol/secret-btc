@@ -39,7 +39,7 @@ pub fn simple_hash_from_byte_vectors(byte_vecs: Vec<Vec<u8>>) -> Vec<u8> {
     simple_hash_from_byte_slices_inner(byte_vecs.as_slice())
 }
 
-#[derive(Serialize, Deserialize, Debug, schemars::JsonSchema, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, schemars::JsonSchema, Clone, PartialEq, Default)]
 pub struct MerkleProof {
     pub total: u64,
     pub index: u64,

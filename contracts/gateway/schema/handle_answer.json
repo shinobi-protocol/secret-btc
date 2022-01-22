@@ -96,6 +96,25 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "required": [
+        "release_btc_by_owner"
+      ],
+      "properties": {
+        "release_btc_by_owner": {
+          "type": "object",
+          "required": [
+            "tx"
+          ],
+          "properties": {
+            "tx": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {

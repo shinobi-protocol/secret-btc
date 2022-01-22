@@ -1,4 +1,4 @@
-use crate::state::chaindb::StorageChainDB;
+use crate::state::StorageChainDB;
 use aes_siv::aead::generic_array::GenericArray;
 use aes_siv::siv::Aes128Siv;
 use cosmwasm_std::{

@@ -6,6 +6,7 @@ import BtcClientInterface from './BtcClientInterface';
 import { chunkArray } from './chunkArray';
 import { PrefixedLogger } from './PrefixedLogger';
 import { BitcoinSPVClient } from 'sbtc-js/build/contracts/bitcoin_spv/BitcoinSPVClient';
+import { Block } from 'sbtc-js/node_modules/bitcoinjs-lib';
 
 export default class BtcSyncClient {
     shurikenClient: ShurikenClient;
@@ -27,6 +28,58 @@ export default class BtcSyncClient {
         this.blocksPerTx = blocksPerTx;
         this.logger = new PrefixedLogger(logger, '[BtcSyncClient]');
     }
+
+    public async estimateGasUsed(): Promise<number | undefined> {
+        const searchBlockRange = 1000;
+        const currentBlock = await this.shurikenClient.signingCosmWasmClient.getBlock();
+        const query = `wasm.contract_address=${
+            this.shurikenClient.contractAddress
+        }&message.signer=${this.shurikenClient.senderAddress()}&tx.minheight=${Math.max(
+            currentBlock.header.height - searchBlockRange,
+            1
+        )}`;
+        try {
+            const result = await this.shurikenClient.signingCosmWasmClient.restClient.txsQuery(
+                `${query}&limit=100`
+            );
+            const proxyGasUsedArray = result.txs
+                .filter(
+                    (tx) =>
+                        tx.logs![0].events.filter(
+                            (event) =>
+                                event.type === 'wasm' &&
+                                event.attributes.filter(
+                                    (event) =>
+                                        event.key === 'contract_address' &&
+                                        event.value ===
+                                            this.bitcoinSPVClient
+                                                .contractAddress
+                                ).length
+                        ).length &&
+                        tx.logs![0].events.filter(
+                            (event) =>
+                                event.type === 'message' &&
+                                event.attributes.filter(
+                                    (event) =>
+                                        event.key === 'action' &&
+                                        event.value === 'execute'
+                                )
+                        ).length
+                )
+                .map((tx) => parseInt(tx.gas_used!, 10));
+            return proxyGasUsedArray.length
+                ? Math.ceil(Math.max(...proxyGasUsedArray) * 1.1)
+                : undefined;
+        } catch (e) {
+            /// if search query does not match, rest client throws following error
+            if ((e as Error).message === 'Unexpected response data format') {
+                return undefined;
+            } else {
+                throw e;
+            }
+        }
+    }
+
     public async syncBitcoinHeaders(): Promise<
         ExecuteResult<HandleMsg, void>[]
     > {
@@ -34,31 +87,49 @@ export default class BtcSyncClient {
         const spvBestHash = (
             await this.bitcoinSPVClient.bestHeaderHash()
         ).toString('hex');
-        let spvBestHeight = await this.btcClient.getBlockHeight(spvBestHash);
+        const spvBestHeight = await this.btcClient.getBlockHeight(spvBestHash);
         this.logger.log(`SPV Best Header: ${spvBestHeight} ${spvBestHash}`);
         const btcBestHeight = await this.btcClient.getBestBlockHeight();
         const btcBestId = (await this.btcClient.getBestBlockHeader()).getId();
         this.logger.log(`Bitcoin Best Header: ${btcBestHeight} ${btcBestId}`);
 
-        const headers = [];
-        let header = await this.btcClient.getBlockHeader(btcBestId);
+        const headers: Block[] = [];
         const prevHash = Buffer.alloc(32);
-        header.prevHash?.copy(prevHash);
-        let prevId = prevHash.reverse().toString('hex');
-        while (prevId !== undefined && header.getId() !== spvBestHash) {
+        let id = btcBestId;
+        for (;;) {
+            // extend header chain
+            if (id === spvBestHash) {
+                this.logger.log('extend header chain');
+                break;
+            }
+            // detect chain folk parent
+            if (
+                headers.length > btcBestHeight - spvBestHeight &&
+                id ===
+                    (
+                        await this.bitcoinSPVClient.blockHeader(
+                            btcBestHeight - headers.length
+                        )
+                    ).getId()
+            ) {
+                this.logger.log('detect chain folk parent');
+                break;
+            }
+            const header = await this.btcClient.getBlockHeader(id);
             headers.push(header);
-            header = await this.btcClient.getBlockHeader(prevId);
             header.prevHash?.copy(prevHash);
-            prevId = prevHash.reverse().toString('hex');
+            id = prevHash.reverse().toString('hex');
         }
         headers.reverse();
+        let tipHeight = btcBestHeight - headers.length;
         const chunkedHeaders = chunkArray(headers, this.blocksPerTx);
         const results = [];
         for (const chunk of chunkedHeaders) {
-            spvBestHeight += chunk.length;
+            tipHeight += chunk.length;
             const result = await this.shurikenClient.proxyBitcoinSPVAddHeaders(
-                spvBestHeight,
-                chunk
+                tipHeight,
+                chunk,
+                await this.estimateGasUsed()
             );
             results.push(result);
         }

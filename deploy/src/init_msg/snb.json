@@ -1,10 +1,32 @@
 {
-    "name": "shinobi",
-    "symbol": "SNB",
-    "decimals": 8,
-    "config": {
-        "public_total_supply": true,
-        "enable_mint": true,
-        "enable_burn": true
+    "local": {
+        "name": "shinobi",
+        "symbol": "SNB",
+        "decimals": 8,
+        "config": {
+            "public_total_supply": true,
+            "enable_mint": true,
+            "enable_burn": true
+        }
+    },
+    "testnet": {
+        "name": "shinobi",
+        "symbol": "SNB",
+        "decimals": 8,
+        "config": {
+            "public_total_supply": true,
+            "enable_mint": true,
+            "enable_burn": true
+        }
+    },
+    "mainnet-test": {
+        "name": "test-shinobi",
+        "symbol": "TSNB",
+        "decimals": 8,
+        "config": {
+            "public_total_supply": true,
+            "enable_mint": true,
+            "enable_burn": true
+        }
     }
 }

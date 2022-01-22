@@ -10,7 +10,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    try_init(deps, env, msg).map_err(|e| e.into())
+    Ok(try_init(deps, env, msg)?)
 }
 
 fn try_init<S: Storage, A: Api, Q: Querier>(
@@ -18,12 +18,7 @@ fn try_init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> Result<InitResponse, Error> {
-    init_prng(
-        &mut deps.storage,
-        PREFIX_PRNG,
-        &env,
-        msg.prng_seed.as_slice(),
-    )?;
+    init_prng(&mut deps.storage, PREFIX_PRNG, &env, msg.entropy.as_slice())?;
     write_config(&mut deps.storage, msg.config, &deps.api)?;
 
     Ok(InitResponse {

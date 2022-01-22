@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HandleAnswer",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "submit_transaction"
+      ],
+      "properties": {
+        "submit_transaction": {
+          "type": "object",
+          "required": [
+            "transaction_id"
+          ],
+          "properties": {
+            "transaction_id": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    }
+  ]
+}

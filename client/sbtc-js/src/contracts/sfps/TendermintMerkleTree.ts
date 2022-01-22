@@ -1,43 +1,26 @@
 import { sha256 } from '../../hash';
-import * as protobuf from 'protobufjs';
 import { Tx, TxResult } from '../../TendermintRPCClient';
+import { ResponseDeliverTx } from './tendermint.abci';
 
 // encode tendermint v0.34.0 TxData(ResponseDeliverTx) to leaf of merkle tree in header (last_results_hash)
 export class TxDataEncoder {
-    public protobufType: protobuf.Type;
-
-    public constructor(protobufType: protobuf.Type) {
-        this.protobufType = protobufType;
+    public static decode(buffer: Buffer): ResponseDeliverTx {
+        return ResponseDeliverTx.fromBinary(buffer);
     }
 
-    public static async init(): Promise<TxDataEncoder> {
-        const root = await protobuf.load(__dirname + '/tendermint.abci.proto');
-        const protobufType = root.lookupType('ResponseDeliverTx');
-        return new TxDataEncoder(protobufType);
-    }
-
-    public decode(buffer: Buffer): protobuf.Message {
-        return this.protobufType.decode(buffer);
-    }
-
-    public encode(tx_result: TxResult): Buffer {
+    public static encode(tx_result: TxResult): Buffer {
         // set code to undefined if 0(default value)
-        let code: number | undefined = tx_result.code;
-        if (code == 0) {
-            code = undefined;
-        }
-        const convertedTx = this.protobufType.create({
-            code: code,
+        const responseDeliverTx: ResponseDeliverTx = {
+            code: tx_result.code,
             data: Buffer.from(tx_result.data, 'base64'),
-            gasWanted: parseInt(tx_result.gas_wanted, 10),
-            gasUsed: parseInt(tx_result.gas_used, 10),
-        });
-        const errMsg = this.protobufType.verify(convertedTx);
-        if (errMsg) {
-            throw Error(errMsg);
-        }
-        const message = this.protobufType.create(convertedTx);
-        return Buffer.from(this.protobufType.encode(message).finish());
+            log: '',
+            info: '',
+            gasWanted: BigInt(tx_result.gas_wanted),
+            gasUsed: BigInt(tx_result.gas_used),
+            events: [],
+            codespace: '',
+        };
+        return Buffer.from(ResponseDeliverTx.toBinary(responseDeliverTx));
     }
 }
 
@@ -59,12 +42,8 @@ export class MerkleProof {
         this.aunts = aunts;
     }
 
-    public static async fromRpcTxs(
-        rpcTxs: Tx[],
-        index: number
-    ): Promise<MerkleProof> {
-        const encoder = await TxDataEncoder.init();
-        const leaves = rpcTxs.map((tx) => encoder.encode(tx.tx_result));
+    public static fromRpcTxs(rpcTxs: Tx[], index: number): MerkleProof {
+        const leaves = rpcTxs.map((tx) => TxDataEncoder.encode(tx.tx_result));
         return MerkleProof.fromLeaves(leaves, index);
     }
 

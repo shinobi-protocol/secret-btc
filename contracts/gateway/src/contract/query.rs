@@ -3,6 +3,7 @@ use crate::error::Error;
 use crate::state::config::read_config;
 use crate::state::mint_key::read_mint_key;
 use crate::state::prefix::PREFIX_VIEW_KEY;
+use crate::state::suspension_switch::suspension_switch;
 use bitcoin::Address;
 use cosmwasm_std::{
     to_binary, Api, Extern, HumanAddr, Querier, QueryResponse, QueryResult, Storage,
@@ -14,9 +15,10 @@ use std::string::ToString;
 pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
     let result = match msg {
         QueryMsg::Config {} => query_config(deps),
+        QueryMsg::SuspensionSwitch {} => query_suspension_switch(deps),
         _ => authenticated_queries(deps, msg),
     };
-    result.map_err(|e| e.into())
+    Ok(result?)
 }
 
 fn get_validation_params(query_msg: &QueryMsg) -> (Vec<&HumanAddr>, viewing_key::ViewingKey) {
@@ -59,6 +61,13 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
 ) -> Result<QueryResponse, Error> {
     let config = read_config(&deps.storage, &deps.api)?;
     Ok(to_binary(&QueryAnswer::Config(config))?)
+}
+
+fn query_suspension_switch<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> Result<QueryResponse, Error> {
+    let switch = suspension_switch(&deps.storage)?;
+    Ok(to_binary(&QueryAnswer::SuspensionSwitch(switch))?)
 }
 
 fn query_mint_address<S: Storage, A: Api, Q: Querier>(

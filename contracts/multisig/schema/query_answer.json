@@ -1,63 +1,26 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "HandleMsg",
+  "title": "QueryAnswer",
   "anyOf": [
     {
       "type": "object",
       "required": [
-        "change_config"
+        "transaction_status"
       ],
       "properties": {
-        "change_config": {
-          "type": "object",
-          "required": [
-            "config"
-          ],
-          "properties": {
-            "config": {
-              "$ref": "#/definitions/Config"
-            }
-          }
+        "transaction_status": {
+          "$ref": "#/definitions/TransactionStatus"
         }
       }
     },
     {
       "type": "object",
       "required": [
-        "submit_transaction"
+        "multisig_status"
       ],
       "properties": {
-        "submit_transaction": {
-          "type": "object",
-          "required": [
-            "transaction"
-          ],
-          "properties": {
-            "transaction": {
-              "$ref": "#/definitions/Transaction"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "sign_transaction"
-      ],
-      "properties": {
-        "sign_transaction": {
-          "type": "object",
-          "required": [
-            "transaction_id"
-          ],
-          "properties": {
-            "transaction_id": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          }
+        "multisig_status": {
+          "$ref": "#/definitions/MultisigStatus"
         }
       }
     }
@@ -105,6 +68,23 @@
     "HumanAddr": {
       "type": "string"
     },
+    "MultisigStatus": {
+      "type": "object",
+      "required": [
+        "config",
+        "transaction_count"
+      ],
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/Config"
+        },
+        "transaction_count": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
     "Transaction": {
       "type": "object",
       "required": [
@@ -128,6 +108,30 @@
           "items": {
             "$ref": "#/definitions/Coin"
           }
+        }
+      }
+    },
+    "TransactionStatus": {
+      "type": "object",
+      "required": [
+        "config",
+        "signed_by",
+        "transaction"
+      ],
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/Config"
+        },
+        "signed_by": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "transaction": {
+          "$ref": "#/definitions/Transaction"
         }
       }
     },

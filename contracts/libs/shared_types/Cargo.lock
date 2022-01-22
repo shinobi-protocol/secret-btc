@@ -491,6 +491,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "secret-cosmwasm-std"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ef24a4c7c02a2667b5c1c8a297879eca908428ac17068dcec2e61a4cba189ad"
+dependencies = [
+ "base64 0.11.0",
+ "schemars",
+ "serde",
+ "serde-json-wasm",
+ "snafu",
+]
+
+[[package]]
+name = "secret-cosmwasm-storage"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffee3243bb13c02ddcdc15458526288d36ec23422ec43681ac5d48e7325d8327"
+dependencies = [
+ "secret-cosmwasm-std",
+ "serde",
+]
+
+[[package]]
 name = "secret-toolkit"
 version = "0.1.0"
 source = "git+https://github.com/enigmampc/secret-toolkit?rev=v0.1.1-debug-print#41a2eb310b5d1b08ced124a5e3664546bd3b355e"
@@ -663,9 +686,9 @@ name = "shared_types"
 version = "0.1.0"
 dependencies = [
  "cosmwasm-std",
- "cosmwasm-storage",
  "rand",
  "schemars",
+ "secret-cosmwasm-storage",
  "secret-toolkit",
  "serde",
  "sfps_lib",

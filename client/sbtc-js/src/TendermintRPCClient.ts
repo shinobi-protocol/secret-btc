@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { Type } from './contracts/sfps/types';
 
 /**
@@ -66,10 +66,43 @@ export class TendermintRPCClient {
         path: string,
         params?: Record<string, unknown>
     ): Promise<R> {
-        const ret: { data: { result: R } } = await axios(this.url + path, {
-            params,
-        });
-        return ret.data.result;
+        const isRetryable = (e: AxiosError) => {
+            return !!(
+                e.response &&
+                e.response.status === 429 &&
+                e.response.headers['retry-after']
+            ); //eslint-disable-line
+        };
+        const isAxiosError = (error: any): error is AxiosError => {
+            return !!error.isAxiosError; //eslint-disable-line
+        };
+
+        for (;;) {
+            try {
+                const ret: { data: { result: R } } = await axios(
+                    this.url + path,
+                    {
+                        params,
+                    }
+                );
+                return ret.data.result;
+            } catch (e) {
+                console.log('Tendermint RPC returns error: ', e);
+                if (!isAxiosError(e)) throw e;
+                if (isRetryable(e)) {
+                    const waitTime = e.response!.headers['retry-after']; //eslint-disable-line
+                    console.log(
+                        'Tendermint RPC returns error: 429',
+                        waitTime * 1000
+                    );
+                    await new Promise((resolve) =>
+                        setTimeout(resolve, waitTime * 1000)
+                    ); //eslint-disable-line
+                } else {
+                    throw e;
+                }
+            }
+        }
     }
 }
 

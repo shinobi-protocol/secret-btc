@@ -4,13 +4,13 @@
   "type": "object",
   "required": [
     "config",
-    "prng_seed"
+    "entropy"
   ],
   "properties": {
     "config": {
       "$ref": "#/definitions/Config"
     },
-    "prng_seed": {
+    "entropy": {
       "$ref": "#/definitions/Binary"
     }
   },
@@ -26,6 +26,7 @@
         "btc_tx_values",
         "finance_admin",
         "log",
+        "owner",
         "sbtc",
         "sfps"
       ],
@@ -52,6 +53,14 @@
         },
         "log": {
           "$ref": "#/definitions/ContractReference"
+        },
+        "owner": {
+          "description": "[Owner]",
+          "allOf": [
+            {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          ]
         },
         "sbtc": {
           "$ref": "#/definitions/ContractReference"

@@ -19,16 +19,18 @@ import {
 type ExecuteResult<ANSWER> = GenericExecuteResult<SFPSHandleMsg, ANSWER>;
 class SFPSClient extends ContractClient<SFPSHandleMsg, QueryMsg, QueryAnswer> {
     // handle
-    public async addLightBlock(
+    public async addLightBlocks(
         current_highest_header: CurrentHighestHeaderObject,
-        light_block: LightBlock,
+        light_blocks: LightBlock[],
+        entropy: Buffer,
         gasLimit?: number
     ): Promise<ExecuteResult<void>> {
         return await this.execute(
             {
-                add_light_block: {
+                add_light_blocks: {
                     current_highest_header,
-                    light_block,
+                    light_blocks,
+                    entropy: entropy.toString('base64'),
                 },
             },
             gasLimit || 2800000,

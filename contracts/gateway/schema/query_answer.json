@@ -35,6 +35,17 @@
     {
       "type": "object",
       "required": [
+        "suspension_switch"
+      ],
+      "properties": {
+        "suspension_switch": {
+          "$ref": "#/definitions/SuspensionSwitch"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
         "viewing_key_error"
       ],
       "properties": {
@@ -60,6 +71,7 @@
         "btc_tx_values",
         "finance_admin",
         "log",
+        "owner",
         "sbtc",
         "sfps"
       ],
@@ -87,6 +99,14 @@
         "log": {
           "$ref": "#/definitions/ContractReference"
         },
+        "owner": {
+          "description": "[Owner]",
+          "allOf": [
+            {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          ]
+        },
         "sbtc": {
           "$ref": "#/definitions/ContractReference"
         },
@@ -112,6 +132,33 @@
     },
     "HumanAddr": {
       "type": "string"
+    },
+    "SuspensionSwitch": {
+      "type": "object",
+      "required": [
+        "claim_release_btc",
+        "release_incorrect_amount_btc",
+        "request_mint_address",
+        "request_release_btc",
+        "verify_mint_tx"
+      ],
+      "properties": {
+        "claim_release_btc": {
+          "type": "boolean"
+        },
+        "release_incorrect_amount_btc": {
+          "type": "boolean"
+        },
+        "request_mint_address": {
+          "type": "boolean"
+        },
+        "request_release_btc": {
+          "type": "boolean"
+        },
+        "verify_mint_tx": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }
