@@ -38,7 +38,7 @@ cp .env.example .env
 
 ```
 MNEMONIC=[YOUR MNEMONIC SEED]
-SHURIKEN_ADDRESS=[TODO! PUT SHURIKEN_ADDRESS]
+SHURIKEN_ADDRESS=secret1crv605udfmkgjwem233f4eyzs2dutftj0lpr4d
 ```
 
 ### Setup Testnet Bitcoin JSON-RPC API

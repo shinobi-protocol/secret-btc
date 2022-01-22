@@ -167,8 +167,6 @@ export default class TendermintSyncClient {
                 break;
             }
         }
-        const authorizedValidators = this.contractBestHeader!
-            .next_validators_hash;
         for (
             let height = this.checkedHeight! + 1;
             height < maxHeight && this.headersForSync.length < this.blocksPerTx;
@@ -178,7 +176,7 @@ export default class TendermintSyncClient {
                 .header;
             this.logger.log(`check ${height}`);
             if (
-                authorizedValidators != header.next_validators_hash ||
+                header.validators_hash != header.next_validators_hash ||
                 height - lastHeight == this.maxInterval
             ) {
                 this.logger.log(`sync ${height}`);
