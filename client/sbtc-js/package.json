@@ -23,7 +23,7 @@
     "author": "Shinobi Protocol",
     "license": "AGPL-3.0-or-later",
     "dependencies": {
-        "axios": "^0.21.1",
+        "axios": "^0.21.2",
         "bignumber.js": "^9.0.1",
         "bip174": "^2.0.1",
         "bitcoinjs-lib": "^5.2.0",

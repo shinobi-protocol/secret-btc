@@ -77,7 +77,7 @@ const deploySNB = async (
             },
         ],
         prng_seed: crypto.randomBytes(32).toString('base64'),
-        ...require('./init_msg/sbtc.json')[deployer.environment],
+        ...require('./init_msg/snb.json')[deployer.environment],
     };
     return deployer.deployContract('token', initMsg, 'SNB');
 };
