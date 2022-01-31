@@ -42,7 +42,10 @@ export default class TendermintSyncClient {
 
     public async estimateGasUsed(): Promise<number | undefined> {
         if (this.gasUsedOfLastOutOfGas) {
-            const estimated = this.gasUsedOfLastOutOfGas * 1.5;
+            const estimated = Math.min(
+                this.gasUsedOfLastOutOfGas * 1.5,
+                9999999
+            );
             this.gasUsedOfLastOutOfGas = undefined;
             return estimated;
         }
@@ -53,10 +56,10 @@ export default class TendermintSyncClient {
         }&message.signer=${this.shurikenClient.senderAddress()}&tx.minheight=${Math.max(
             currentBlock.header.height - searchBlockRange,
             1
-        )}`;
+        )}&limit=100`;
         try {
             const result = await this.shurikenClient.signingCosmWasmClient.restClient.txsQuery(
-                `${query}&limit=100`
+                query
             );
             const proxyGasUsedArray = result.txs
                 .filter(
@@ -83,7 +86,10 @@ export default class TendermintSyncClient {
                 )
                 .map((tx) => parseInt(tx.gas_used!, 10));
             return proxyGasUsedArray.length
-                ? Math.ceil(Math.max(...proxyGasUsedArray) * 1.1)
+                ? Math.min(
+                      Math.ceil(Math.max(...proxyGasUsedArray) * 1.1),
+                      9999999
+                  )
                 : undefined;
         } catch (e) {
             /// if search query does not match, rest client throws following error
@@ -134,7 +140,7 @@ export default class TendermintSyncClient {
                 };
             })
         );
-
+        console.log('msg length: ', JSON.stringify(lightBlocks).length);
         return await this.shurikenClient.proxySFPSAddLightBlock(
             this.contractBestHeader!,
             lightBlocks,

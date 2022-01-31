@@ -41,7 +41,7 @@ impl<S: ReadonlyStorage> ReadonlyChainDB for StorageChainDB<S> {
     fn get_highest_hash(&self) -> Option<Vec<u8>> {
         let storage = ReadonlyPrefixedStorage::new(PREFIX_HEADER_HASH, &self.storage);
         let storage = AppendStore::attach(&storage)?.ok()?;
-        storage.iter().last()?.ok()
+        storage.get_at(storage.len() - 1).ok()
     }
     fn get_hash_list_length(&self) -> usize {
         let storage = ReadonlyPrefixedStorage::new(PREFIX_HEADER_HASH, &self.storage);

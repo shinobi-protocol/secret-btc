@@ -198,19 +198,24 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
                     },
                 },
                 recipient_address,
-                requester: this.signingCosmWasmClient.senderAddress,
                 fee_per_vb,
                 header_hash_index,
             },
         };
-        return await this.execute(message, gasLimit || 5000000, (answerJson) =>
-            Transaction.fromBuffer(
-                Buffer.from(
-                    Convert.toHandleAnswer(answerJson).claim_released_btc!.tx,
-                    'base64'
+        const result = await this.execute(
+            message,
+            gasLimit || 5000000,
+            (answerJson) =>
+                Transaction.fromBuffer(
+                    Buffer.from(
+                        Convert.toHandleAnswer(answerJson).claim_released_btc!
+                            .tx,
+                        'base64'
+                    )
                 )
-            )
         );
+        this.logger.info('transaction hex:' + result.answer.toHex());
+        return result;
     }
 
     public async setViewingKey(key: string): Promise<ExecuteResult<void>> {
@@ -264,6 +269,36 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
             suspension_switch: {},
         });
         return answer.suspension_switch!;
+    }
+
+    public async releaseBTCByOwner(
+        txValue: BigNumber,
+        maxInputLength: number,
+        recipientAddress: string,
+        feePerVb: number,
+        gasLimit?: number
+    ): Promise<ExecuteResult<Transaction>> {
+        const result = await this.execute(
+            {
+                release_btc_by_owner: {
+                    tx_value: txValue.shiftedBy(8).toNumber(),
+                    max_input_length: maxInputLength,
+                    recipient_address: recipientAddress,
+                    fee_per_vb: feePerVb,
+                },
+            },
+            gasLimit || 5000000,
+            (answerJson) =>
+                Transaction.fromBuffer(
+                    Buffer.from(
+                        Convert.toHandleAnswer(answerJson).release_btc_by_owner!
+                            .tx,
+                        'base64'
+                    )
+                )
+        );
+        this.logger.info('transaction hex:' + result.answer.toHex());
+        return result;
     }
 
     // https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki
