@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-types */
 
 import { ContractDetails, SigningCosmWasmClient } from 'secretjs';
-import { StdFee } from 'secretjs/types/types';
+import { Coin, StdFee } from 'secretjs/types/types';
 import { Logger } from 'winston';
 
 export interface ExecuteResult<HANDLE_MSG, ANSWER> {
@@ -9,6 +9,11 @@ export interface ExecuteResult<HANDLE_MSG, ANSWER> {
     msg: HANDLE_MSG;
     transactionHash: string;
     answer: ANSWER;
+}
+
+interface TxResult {
+    transactionHash: string;
+    answerJson: string;
 }
 
 interface PaddingMsg {
@@ -63,19 +68,18 @@ export abstract class ContractClient<
                 '\nFee: ' +
                 JSON.stringify(stdFee),
         });
-        const result = await this.signingCosmWasmClient.execute(
+        const result = await this.sendTx(
             this.contractAddress,
             paddedMsg,
             '',
             [],
             stdFee
         );
-        const answerJson = new TextDecoder().decode(result.data as Uint8Array);
         const executeResult = {
             contractDetails: await this.contractDetails,
             msg: handleMsg,
             transactionHash: result.transactionHash,
-            answer: parseAnswer(answerJson),
+            answer: parseAnswer(result.answerJson),
         };
         this.logger.log({
             level: 'info',
@@ -90,15 +94,44 @@ export abstract class ContractClient<
             level: 'info',
             message: 'Query Start: ' + JSON.stringify(paddedMsg),
         });
-        const result = (await this.signingCosmWasmClient.queryContractSmart(
-            this.contractAddress,
-            paddedMsg
-        )) as QUERY_ANSWER;
+        const maxTry = 5;
+        let error: Error;
+        for (let tryCount = 0; tryCount < maxTry; tryCount++) {
+            this.logger.log({
+                level: 'info',
+                message: `Query try ${tryCount + 1}/${maxTry}`,
+            });
+            // wait x^2 seconds;
+            const waitTime = 1000 * (tryCount ^ 2);
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
+            try {
+                // Query
+                const result =
+                    (await this.signingCosmWasmClient.queryContractSmart(
+                        this.contractAddress,
+                        paddedMsg
+                    )) as QUERY_ANSWER;
+                this.logger.log({
+                    level: 'info',
+                    message: 'Query Succeed: ' + JSON.stringify(result),
+                });
+                return result;
+            } catch (e) {
+                // catch error
+                error = e as Error;
+                this.logger.log({
+                    level: 'info',
+                    message: `Query catch error: ${error.message}`,
+                });
+            }
+        }
+        // After tried for maxTry times, throw the last error
         this.logger.log({
             level: 'info',
-            message: 'Query Succeed: ' + JSON.stringify(result),
+            message: 'Query throw error:',
         });
-        return result;
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        throw error!;
     }
 
     /**
@@ -155,5 +188,90 @@ export abstract class ContractClient<
             ],
             gas: gasLimit.toString(),
         };
+    }
+
+    private async sendTx(
+        contractAddress: string,
+        handleMsg: object,
+        memo?: string,
+        transferAmount?: readonly Coin[],
+        fee?: StdFee,
+        contractCodeHash?: string
+    ): Promise<TxResult> {
+        const currentBlockHeight = (await this.signingCosmWasmClient.getBlock())
+            .header.height;
+        const currentSequence = (await this.signingCosmWasmClient.getAccount())!
+            .sequence;
+        try {
+            const result = await this.signingCosmWasmClient.execute(
+                contractAddress,
+                handleMsg,
+                memo,
+                transferAmount,
+                fee,
+                contractCodeHash
+            );
+            return {
+                transactionHash: result.transactionHash,
+                answerJson: new TextDecoder().decode(result.data as Uint8Array),
+            };
+        } catch (e) {
+            if (this.isTxTimeoutError(e)) {
+                this.logger.log({
+                    level: 'info',
+                    message: 'Waiting for tx to be confirmed...',
+                });
+                // Wait for Tx to be Included in a block
+                let retryCount = 0;
+                while (
+                    currentSequence ==
+                    (await this.signingCosmWasmClient.getAccount())!.sequence
+                ) {
+                    retryCount++;
+                    if (retryCount > 10) {
+                        throw Error('Tx seems to be losted. retry execution.');
+                    }
+                    await new Promise((resolve) =>
+                        setTimeout(resolve, 1000 * (retryCount ^ 2))
+                    );
+                }
+                // wait
+                await new Promise((resolve) => setTimeout(resolve, 4000))
+                // Query Tx Result
+                const query = `message.signer=${this.senderAddress()}&wasm.contract_address=${
+                    this.contractAddress
+                }&tx.minheight=${currentBlockHeight}`;
+                const txs = (
+                    await this.signingCosmWasmClient.restClient.txsQuery(query)
+                ).txs;
+
+                console.log('txs: ', txs)
+                const tx = txs[txs.length - 1];
+                this.logger.log({ level: 'info', message: 'Tx confirmed' });
+                if (tx.code) {
+                    throw new Error(
+                        `Error when posting tx ${tx.txhash}. Code: ${tx.code}; Raw log: ${tx.raw_log}`
+                    );
+                }
+                return {
+                    transactionHash: tx.txhash,
+                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
+                    answerJson: new TextDecoder().decode(tx.data),
+                };
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private isTxTimeoutError(e: unknown): boolean {
+        return (
+            e instanceof Error &&
+            e.name == 'Error' &&
+            e.message ==
+                'Failed to decrypt the following error message: timed out waiting for tx to be included in a block (HTTP 500). Decryption error of the error message: timed out waiting for tx to be included in a block (HTTP 500)'
+        );
     }
 }

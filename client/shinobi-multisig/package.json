@@ -1,0 +1,32 @@
+{
+    "name": "shinobi-multisig",
+    "version": "1.0.0",
+    "bin": {
+        "shinobi-multisig": "build/index.js"
+    },
+    "typings": "build/index.d.ts",
+    "files": [
+        "build"
+    ],
+    "scripts": {
+        "build": "npx tsc",
+        "dev": "DEBUG=true npx ts-node ./src/index.ts",
+        "symlink": "npm link"
+    },
+    "author": "Shinobi Protocol",
+    "license": "AGPL-3.0-or-later",
+    "dependencies": {
+        "cac": "^6.7.12",
+        "readline-sync": "^1.4.10",
+        "sbtc-js": "link:../sbtc-js"
+    },
+    "devDependencies": {
+        "@types/node": "^14.14.21",
+        "@types/readline-sync": "^1.4.4",
+        "eslint": "^7.16.0",
+        "eslint-config-prettier": "^7.1.0",
+        "prettier": "^2.2.1",
+        "ts-node": "^9.1.1",
+        "typescript": "^4.1.3"
+    }
+}
