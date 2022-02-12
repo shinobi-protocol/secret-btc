@@ -67,11 +67,13 @@ export class TendermintRPCClient {
         params?: Record<string, unknown>
     ): Promise<R> {
         const isRetryable = (e: AxiosError) => {
-            return !!(
-                e.response &&
-                e.response.status === 429 &&
-                e.response.headers['retry-after']
-            ); //eslint-disable-line
+            return (
+                !!(
+                    e.response &&
+                    e.response.status === 429 &&
+                    e.response.headers['retry-after'] //eslint-disable-line
+                ) || !!(e.response && e.response.status >= 500)
+            );
         };
         const isAxiosError = (error: any): error is AxiosError => {
             return !!error.isAxiosError; //eslint-disable-line

@@ -25,7 +25,6 @@ const initSigningCosmWasmClient = async (): Promise<SigningCosmWasmClient> => {
     const httpUrl = process.env.SECRET_REST_URL!;
     const mnemonic = process.env.MNEMONIC!;
     console.log('httpUrl', httpUrl);
-    console.log('mnemonic', mnemonic);
     const client = await buildSigningCosmWasmClient(httpUrl, mnemonic);
     await client.getAccount();
     console.log('Successfully connected to Secret Network');
@@ -106,54 +105,11 @@ const job = async (
     btcSyncClient: BtcSyncClient,
     tendermintSyncClient: TendermintSyncClient
 ) => {
-    await waitForTxIncludedInABlock(() => {
-        return btcSyncClient.syncBitcoinHeaders();
-    }, btcSyncClient.shurikenClient.signingCosmWasmClient);
-    await waitForTxIncludedInABlock(() => {
-        return tendermintSyncClient.syncTendermintHeaders();
-    }, tendermintSyncClient.shurikenClient.signingCosmWasmClient);
+    await btcSyncClient.syncBitcoinHeaders();
+    await tendermintSyncClient.syncTendermintHeaders();
     scheduleJob(addSeconds(new Date(), 10), (): void => {
         void job(btcSyncClient, tendermintSyncClient);
     });
-};
-
-const waitForTxIncludedInABlock = async (
-    txBroadCastingFunction: () => Promise<any>,
-    signingCosmWasmClient: SigningCosmWasmClient
-): Promise<any> => {
-    const currentSequence = (await signingCosmWasmClient.getAccount())!
-        .sequence;
-    try {
-        await txBroadCastingFunction();
-    } catch (e) {
-        if (
-            e instanceof Error &&
-            e.name == 'Error' &&
-            e.message ==
-                'Failed to decrypt the following error message: timed out waiting for tx to be included in a block (HTTP 500). Decryption error of the error message: timed out waiting for tx to be included in a block (HTTP 500)'
-        ) {
-            console.log('tx broad cast http timed out');
-            console.log('wait for tx included in a block');
-            const fiveSeconds = 5000;
-            const tenMinutes = 600000;
-            for (let time = 0; time < tenMinutes; time += fiveSeconds) {
-                console.log('wait time', time, '/', tenMinutes);
-                await new Promise((resolve) =>
-                    setTimeout(resolve, fiveSeconds)
-                );
-                if (
-                    currentSequence !=
-                    (await signingCosmWasmClient.getAccount())!.sequence
-                ) {
-                    console.log('tx has been included');
-                    break;
-                }
-            }
-        } else {
-            console.error('unexpected err', e);
-            throw e;
-        }
-    }
 };
 
 const printTitle = () => {
@@ -192,7 +148,7 @@ const main = async () => {
         shurikenClient,
         sfpsClient,
         tendermintClient,
-        10,
+        5,
         logger
     );
     await job(btcSyncClient, tendermintSyncClient);
