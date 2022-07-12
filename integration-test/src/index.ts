@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { assert } from 'chai';
-import { BigNumber, buildSigningCosmWasmClient } from 'sbtc-js';
+import { BigNumber } from 'sbtc-js';
 import { LogClient } from 'sbtc-js/build/contracts/log/LogClient';
 import { GatewayClient } from 'sbtc-js/build/contracts/gateway/GatewayClient';
 import { HandleMsg as GatewayHandleMsg } from 'sbtc-js/build/contracts/gateway/types';
@@ -8,7 +8,7 @@ import { ShurikenClient } from 'sbtc-js/build/contracts/shuriken/ShurikenClient'
 import { MultisigClient } from 'sbtc-js/build/contracts/multisig/MultisigClient';
 import { HandleMsg as MultisigHandleMsg } from 'sbtc-js/build/contracts/multisig/types';
 import { networks } from 'sbtc-js/build/contracts/bitcoin_spv/BitcoinSPVClient';
-import RpcTxFeeResultRepository from 'sbtc-js/build/TxFeeResult/RPCTxFeeResultRepository';
+import { EncryptionUtilsImpl, Wallet, SecretNetworkClient } from 'sbtc-js/node_modules/secretjs';
 import axios from 'axios';
 import RegtestUtilClient from 'shuriken-node/build/RegtestUtilClient';
 import BtcSyncClient from 'shuriken-node/build/BtcSyncClient';
@@ -19,28 +19,21 @@ import { MerkleProof } from 'sbtc-js/build/contracts/sfps/TendermintMerkleTree';
 import { address, Transaction } from 'bitcoinjs-lib';
 import { createLogger, transports, format } from 'winston';
 import { FeeReportRenderer, FileWriter } from './FeeReportRenderer';
-import TxFeeResultRepository from 'sbtc-js/build/TxFeeResult/TxFeeResultRepository';
 import { ExecuteResult } from 'sbtc-js/build/contracts/ContractClient';
 import { randomBytes } from 'crypto';
 import { TokenClient } from 'sbtc-js/build/contracts/token/TokenClient';
 
 class FeeReporter {
     private feeReportRenderer: FeeReportRenderer;
-    private txFeeResultRepository: TxFeeResultRepository;
     constructor(
         feeReportRenderer: FeeReportRenderer,
-        txFeeResultRepository: TxFeeResultRepository
     ) {
         this.feeReportRenderer = feeReportRenderer;
-        this.txFeeResultRepository = txFeeResultRepository;
     }
     public async report(executeResult: ExecuteResult<any, any>): Promise<void> {
-        this.feeReportRenderer.writeRow({
+        this.feeReportRenderer.writeRow(
             executeResult,
-            txFeeResult: await this.txFeeResultRepository.get(
-                executeResult.transactionHash
-            ),
-        });
+        );
     }
 }
 
@@ -48,7 +41,8 @@ class FeeReporter {
  * Environment setup
  */
 const regtestServerUrl = process.env.REGTEST_SERVER_URL!;
-const lcdUrl = process.env.LCD_URL!;
+const grpcWebUrl = process.env.GRPC_WEB_URL!;
+const chainId = process.env.CHAIN_ID!;
 const tendermintRpcUrl = process.env.TENDERMINT_RPC_URL!;
 const mnemonic = process.env.MNEMONIC!;
 const feeReportFilePath = process.env.FEE_REPORT_FILE_PATH!;
@@ -67,16 +61,17 @@ void (async () => {
      */
     const regtestUtilClient = new RegtestUtilClient();
     // Setup Contract Clients
-    const signingCosmWasmClient = await buildSigningCosmWasmClient(
-        lcdUrl,
-        mnemonic,
-        {
-            exec: {
-                amount: [{ amount: '500000', denom: 'uscrt' }],
-                gas: '2000000',
-            },
-        }
+    const wallet = new Wallet(mnemonic);
+    const querier = (await SecretNetworkClient.create({
+        grpcWebUrl, chainId
+    }
+    )).query;
+    const encryptionUtils = new EncryptionUtilsImpl(querier.registration, undefined, chainId)
+    const secretNetworkClient = await SecretNetworkClient.create({
+        grpcWebUrl, chainId, wallet, walletAddress: wallet.address, encryptionUtils
+    }
     );
+
 
     const logger = createLogger({
         transports: [new transports.Console()],
@@ -84,20 +79,20 @@ void (async () => {
     });
     const gatewayClient = new GatewayClient(
         gatewayAddress,
-        signingCosmWasmClient,
+        secretNetworkClient,
         logger
     );
     const snbClient = new TokenClient(
         snbAddress,
-        signingCosmWasmClient,
+        secretNetworkClient,
         logger
     );
     const shurikenClient = new ShurikenClient(
         shurikenAddress,
-        signingCosmWasmClient,
+        secretNetworkClient,
         logger
     );
-    const logClient = new LogClient(logAddress, signingCosmWasmClient, logger);
+    const logClient = new LogClient(logAddress, secretNetworkClient, logger);
     const sbtcClient = await gatewayClient.sbtcClient();
     const sfpsClient = await gatewayClient.sfpsClient();
     const bitcoinSPVClient = await gatewayClient.bitcoinSPVClient();
@@ -105,13 +100,13 @@ void (async () => {
     const gatewayConfig = await gatewayClient.config();
     const multisigClient = new MultisigClient(
         gatewayConfig.ownerAddress,
-        signingCosmWasmClient,
+        secretNetworkClient,
         logger
     );
     console.log(await financeAdminClient.config());
     console.log(
         await financeAdminClient.mintReward(
-            signingCosmWasmClient.senderAddress,
+            secretNetworkClient.address,
             new BigNumber(1),
             new BigNumber(1000),
             await sbtcClient.unitConverter()
@@ -121,7 +116,6 @@ void (async () => {
     // Setup Fee Reporter
     const feeReporter = new FeeReporter(
         new FeeReportRenderer(new FileWriter(feeReportFilePath)),
-        new RpcTxFeeResultRepository(signingCosmWasmClient.restClient)
     );
 
     // Set Viewing Keys
@@ -303,24 +297,17 @@ void (async () => {
             await feeReporter.report(result);
             return result;
         })();
-        const txHash = result.transactionHash;
+        const txHash = result.tx.transactionHash;
         const requestKey = result.answer;
 
-        // Get block height of the request tx
-        const confirmedTx = (
-            await gatewayClient.signingCosmWasmClient.searchTx({
-                id: txHash,
-            })
-        )[0];
-
-        const txHeight = confirmedTx.height;
+        const txHeight = result.tx.height;
 
         // Add Event to log contract
         await feeReporter.report(
             await logClient.addReleaseRequestConfirmedEvent(
                 txHeight,
                 requestKey,
-                Math.floor(Date.parse(confirmedTx.timestamp) / 1000),
+                Math.floor(Date.parse(result.tx.timestamp) / 1000),
                 txHash
             )
         );
@@ -337,7 +324,7 @@ void (async () => {
             logger
         );
         let syncTendermintHeadersResults: ExecuteResult<any, any>[] = [];
-        for (;;) {
+        for (; ;) {
             syncTendermintHeadersResults = syncTendermintHeadersResults.concat(
                 await tendermintSyncClient.syncTendermintHeaders()
             );
@@ -357,13 +344,21 @@ void (async () => {
          * Release - Claim Release BTC
          */
         // Get Nonce of the request tx.
+        /*
         const nonce = (
-            await gatewayClient.signingCosmWasmClient.getNonceByTxId(txHash)
+            await gatewayClient.secretNetworkClient.getNonceByTxId(txHash)
         )[0]!;
+        */
+        console.log('messages', JSON.stringify(result.tx.tx.body.messages));
+        const decodedTx = (await (import("sbtc-js/node_modules/secretjs/dist/protobuf_stuff/cosmos/tx/v1beta1/tx"))).Tx.decode(result.tx.txBytes);
+        const decodedValue = (await (import("sbtc-js/node_modules/secretjs/dist/protobuf_stuff/secret/compute/v1beta1/msg"))).MsgExecuteContract.decode(decodedTx.body!.messages[0].value);
+        console.log('decodedTx messages', JSON.stringify(decodedTx.body!.messages));
+        console.log('decoded message value', JSON.stringify(decodedValue));
+        const nonce = decodedValue.msg.slice(0, 32);
 
         // Restore TxEncryptionKey of the request tx from nonce.
         const txEncryptionKey =
-            await gatewayClient.signingCosmWasmClient.restClient.enigmautils.getTxEncryptionKey(
+            await encryptionUtils.getTxEncryptionKey(
                 nonce
             );
 
@@ -448,9 +443,7 @@ void (async () => {
     await feeReporter.report(
         await multisigClient.submitTransaction(
             gatewayHandleMsg,
-            await signingCosmWasmClient.getCodeHashByContractAddr(
-                gatewayAddress
-            ),
+            await gatewayClient.codeHash,
             gatewayAddress,
             []
         )
@@ -463,16 +456,14 @@ void (async () => {
         change_config: {
             config: {
                 required: 1,
-                signers: [signingCosmWasmClient.senderAddress, gatewayAddress],
+                signers: [secretNetworkClient.address, gatewayAddress],
             },
         },
     };
     await feeReporter.report(
         await multisigClient.submitTransaction(
             multisigHandleMsg,
-            await signingCosmWasmClient.getCodeHashByContractAddr(
-                multisigClient.contractAddress
-            ),
+            await multisigClient.codeHash,
             multisigClient.contractAddress,
             []
         )
@@ -480,7 +471,7 @@ void (async () => {
     assert.deepEqual(await multisigClient.multisigStatus(), {
         config: {
             required: 1,
-            signers: [signingCosmWasmClient.senderAddress, gatewayAddress],
+            signers: [secretNetworkClient.address, gatewayAddress],
         },
         transaction_count: 2,
     });

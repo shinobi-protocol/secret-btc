@@ -11,7 +11,7 @@ const deployMultisig = async (
         'multisig',
         {
             config: {
-                signers: [deployer.client.senderAddress],
+                signers: [deployer.client.address],
                 required: 1,
             },
         },
@@ -72,7 +72,7 @@ const deploySNB = async (
     const initMsg = {
         initial_balances: [
             {
-                address: deployer.client.senderAddress,
+                address: deployer.client.address,
                 amount: new BigNumber(1_000_000_000).shiftedBy(8),
             },
         ],
@@ -97,7 +97,7 @@ const deployGateway = async (
             sfps: sfps,
             sbtc: sbtc,
             finance_admin: {
-                address: deployer.client.senderAddress,
+                address: deployer.client.address,
                 hash: '',
             },
             log: log,
@@ -121,7 +121,7 @@ const deployTreasury = async (
 ) => {
     const initMsg = {
         config: {
-            owner: deployer.client.senderAddress,
+            owner: deployer.client.address,
             snb: snb,
             log: log,
         },
@@ -148,7 +148,7 @@ const deployShuriken = async (
     const initMsg = {
         config: {
             finance_admin: {
-                address: deployer.client.senderAddress,
+                address: deployer.client.address,
                 hash: '',
             },
             bitcoin_spv: bitcoinSPV,
@@ -167,12 +167,12 @@ const deployFinanceAdminV1 = async (
 ): Promise<ContractReference> => {
     const initMsg = {
         config: {
-            owner: deployer.client.senderAddress,
+            owner: deployer.client.address,
             gateway: gateway,
             treasury: treasury,
             shuriken: shuriken,
             snb: snb,
-            developer_address: deployer.client.senderAddress,
+            developer_address: deployer.client.address,
         },
         ...require('./init_msg/finance_admin.json'),
     };
@@ -238,10 +238,11 @@ const main = async () => {
     console.log('config', config);
     const deployer = await ContractDeployer.init(
         config.mnemonic,
-        config.lcdUrl,
+        config.grpcWebUrl,
+        config.chainId,
         config.environment,
         config.gitCommitHash,
-        config.customFees
+        config.transactionWaitTime
     );
     const multisig = await deployMultisig(deployer);
     const log = await deployLog(deployer);

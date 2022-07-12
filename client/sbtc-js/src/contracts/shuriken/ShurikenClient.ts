@@ -3,8 +3,7 @@ import {
     ContractClient,
     ExecuteResult as GenericExecuteResult,
 } from '../ContractClient';
-import { CurrentHighestHeaderObject, LightBlock } from '../sfps/types';
-import { QueryAnswerConfig, HandleMsg, QueryMsg, QueryAnswer } from './types';
+import { QueryAnswerConfig, HandleMsg, QueryMsg, QueryAnswer, CommittedHashes, Header } from './types';
 
 type ExecuteResult<ANSWER> = GenericExecuteResult<HandleMsg, ANSWER>;
 
@@ -22,15 +21,11 @@ class ShurikenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         }
         return await this.execute(
             {
-                bitcoin_s_p_v_proxy: {
-                    msg: {
-                        add_headers: {
-                            tip_height,
-                            headers: blocks.map((header) =>
-                                header.toBuffer(true).toString('base64')
-                            ),
-                        },
-                    },
+                bitcoin_s_p_v_add_headers: {
+                    tip_height,
+                    headers: blocks.map((header) =>
+                        header.toBuffer(true).toString('base64')
+                    ),
                 },
             },
             gasLimit,
@@ -38,22 +33,16 @@ class ShurikenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         );
     }
 
-    public async proxySFPSAddLightBlock(
-        current_highest_header: CurrentHighestHeaderObject,
-        light_blocks: LightBlock[],
-        entropy: Buffer,
+    public async proxySFPSAppendSubsequentHashes(
+        committedHashes: CommittedHashes,
+        lastHeader: Header,
         gasLimit?: number
     ): Promise<ExecuteResult<void>> {
         return await this.execute(
             {
-                s_f_p_s_proxy: {
-                    msg: {
-                        add_light_blocks: {
-                            current_highest_header,
-                            light_blocks,
-                            entropy: entropy.toString('base64'),
-                        },
-                    },
+                s_f_p_s_proxy_append_subsequent_hashes: {
+                    committed_hashes: committedHashes,
+                    last_header: lastHeader
                 },
             },
             gasLimit || 10000000,

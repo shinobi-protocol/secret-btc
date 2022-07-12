@@ -1,3 +1,4 @@
+mod api_ed25519_verifier;
 mod handle;
 mod init;
 mod query;

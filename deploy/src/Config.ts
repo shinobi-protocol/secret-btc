@@ -1,34 +1,22 @@
-import { FeeTable } from 'secretjs';
 
 export class Config {
-    lcdUrl!: string;
+    grpcWebUrl!: string;
     mnemonic!: string;
     rpcUrl!: string;
     environment!: string;
     gitCommitHash!: string;
-    customFees?: Partial<FeeTable>;
+    chainId!: string;
+    transactionWaitTime!: number;
 
     public static init(): Config {
         let config = new Config();
         config.rpcUrl = process.env.TENDERMINT_RPC_URL!;
-        config.lcdUrl = process.env.LCD_URL!;
+        config.grpcWebUrl = process.env.GRPC_WEB_URL!;
         config.mnemonic = process.env.MNEMONIC!;
         config.environment = process.env.ENVIRONMENT!;
         config.gitCommitHash = process.env.GIT_COMMIT_HASH!;
-        config.customFees = {
-            upload: {
-                amount: [{ amount: '1250000', denom: 'uscrt' }],
-                gas: '5000000',
-            },
-            init: {
-                amount: [{ amount: '250000', denom: 'uscrt' }],
-                gas: '1000000',
-            },
-            exec: {
-                amount: [{ amount: '250000', denom: 'uscrt' }],
-                gas: '1000000',
-            },
-        };
+        config.chainId = process.env.CHAIN_ID!;
+        config.transactionWaitTime = parseInt(process.env.TRANSACTION_WAIT_TIME!, 10);
         return config;
     }
 }

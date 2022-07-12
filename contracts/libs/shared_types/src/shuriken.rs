@@ -1,7 +1,5 @@
-use crate::{
-    bitcoin_spv, sfps, CanonicalContractReference, Canonicalize, ContractReference, BLOCK_SIZE,
-};
-use cosmwasm_std::{Api, StdResult};
+use crate::{sfps, CanonicalContractReference, Canonicalize, ContractReference, BLOCK_SIZE};
+use cosmwasm_std::{Api, Binary, StdResult};
 use schemars::JsonSchema;
 use secret_toolkit::utils::calls::{HandleCallback, Query};
 use serde::{Deserialize, Serialize};
@@ -50,11 +48,13 @@ pub enum HandleMsg {
     ChangeFinanceAdmin {
         new_finance_admin: ContractReference,
     },
-    BitcoinSPVProxy {
-        msg: bitcoin_spv::HandleMsg,
+    BitcoinSPVAddHeaders {
+        tip_height: u32,
+        headers: Vec<Binary>,
     },
-    SFPSProxy {
-        msg: sfps::HandleMsg,
+    SFPSProxyAppendSubsequentHashes {
+        committed_hashes: sfps::CommittedHashes,
+        last_header: sfps::Header,
     },
 }
 

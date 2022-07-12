@@ -12,19 +12,11 @@
 
 export interface HandleMsg {
     change_finance_admin?: ChangeFinanceAdmin;
-    bitcoin_s_p_v_proxy?: BitcoinSPVProxy;
-    s_f_p_s_proxy?: SFPSProxy;
+    bitcoin_s_p_v_add_headers?: BitcoinSPVAddHeaders;
+    s_f_p_s_proxy_append_subsequent_hashes?: SFPSProxyAppendSubsequentHashes;
 }
 
-export interface BitcoinSPVProxy {
-    msg: BitcoinSPVHandleMsg;
-}
-
-export interface BitcoinSPVHandleMsg {
-    add_headers: AddHeaders;
-}
-
-export interface AddHeaders {
+export interface BitcoinSPVAddHeaders {
     headers: string[];
     tip_height: number;
 }
@@ -38,18 +30,19 @@ export interface NewFinanceAdminObject {
     hash: string;
 }
 
-export interface SFPSProxy {
-    msg: SFPSHandleMsg;
+export interface SFPSProxyAppendSubsequentHashes {
+    committed_hashes: CommittedHashes;
+    last_header: Header;
 }
 
-export interface SFPSHandleMsg {
-    add_light_blocks: AddLightBlocks;
+export interface CommittedHashes {
+    commit: number[];
+    hashes: Hashes;
 }
 
-export interface AddLightBlocks {
-    current_highest_header: Header;
-    entropy: string;
-    light_blocks: LightBlock[];
+export interface Hashes {
+    first_hash: number[];
+    following_hashes: Array<number[]>;
 }
 
 export interface Header {
@@ -115,8 +108,6 @@ export interface Header {
  * Previous block info
  *
  * BlockID
- *
- * Block ID
  */
 export interface BlockID {
     hash: string;
@@ -140,57 +131,6 @@ export interface Version {
      * Block version
      */
     block: string;
-}
-
-export interface LightBlock {
-    signed_header: SignedHeader;
-    validators: ValidatorInfo[];
-}
-
-export interface SignedHeader {
-    commit: Commit;
-    header: Header;
-}
-
-export interface Commit {
-    /**
-     * Block ID
-     */
-    block_id: BlockID;
-    /**
-     * Block height
-     */
-    height: string;
-    /**
-     * Round
-     */
-    round: number;
-    /**
-     * Votes
-     */
-    signatures: CommitSig[];
-}
-
-export interface CommitSig {
-    block_id_flag: number;
-    signature?: null | string;
-    timestamp: string;
-    validator_address: string;
-}
-
-export interface ValidatorInfo {
-    address: string;
-    pub_key: PublicKey;
-    voting_power: string;
-}
-
-export interface PublicKey {
-    type: Type;
-    value: string;
-}
-
-export enum Type {
-    TendermintPubKeyEd25519 = 'tendermint/PubKeyEd25519',
 }
 
 export interface InitMsg {
@@ -423,27 +363,19 @@ const typeMap: any = {
                 typ: u(undefined, r('ChangeFinanceAdmin')),
             },
             {
-                json: 'bitcoin_s_p_v_proxy',
-                js: 'bitcoin_s_p_v_proxy',
-                typ: u(undefined, r('BitcoinSPVProxy')),
+                json: 'bitcoin_s_p_v_add_headers',
+                js: 'bitcoin_s_p_v_add_headers',
+                typ: u(undefined, r('BitcoinSPVAddHeaders')),
             },
             {
-                json: 's_f_p_s_proxy',
-                js: 's_f_p_s_proxy',
-                typ: u(undefined, r('SFPSProxy')),
+                json: 's_f_p_s_proxy_append_subsequent_hashes',
+                js: 's_f_p_s_proxy_append_subsequent_hashes',
+                typ: u(undefined, r('SFPSProxyAppendSubsequentHashes')),
             },
         ],
         'any'
     ),
-    BitcoinSPVProxy: o(
-        [{ json: 'msg', js: 'msg', typ: r('BitcoinSPVHandleMsg') }],
-        'any'
-    ),
-    BitcoinSPVHandleMsg: o(
-        [{ json: 'add_headers', js: 'add_headers', typ: r('AddHeaders') }],
-        'any'
-    ),
-    AddHeaders: o(
+    BitcoinSPVAddHeaders: o(
         [
             { json: 'headers', js: 'headers', typ: a('') },
             { json: 'tip_height', js: 'tip_height', typ: 0 },
@@ -467,30 +399,28 @@ const typeMap: any = {
         ],
         'any'
     ),
-    SFPSProxy: o([{ json: 'msg', js: 'msg', typ: r('SFPSHandleMsg') }], 'any'),
-    SFPSHandleMsg: o(
+    SFPSProxyAppendSubsequentHashes: o(
         [
             {
-                json: 'add_light_blocks',
-                js: 'add_light_blocks',
-                typ: r('AddLightBlocks'),
+                json: 'committed_hashes',
+                js: 'committed_hashes',
+                typ: r('CommittedHashes'),
             },
+            { json: 'last_header', js: 'last_header', typ: r('Header') },
         ],
         'any'
     ),
-    AddLightBlocks: o(
+    CommittedHashes: o(
         [
-            {
-                json: 'current_highest_header',
-                js: 'current_highest_header',
-                typ: r('Header'),
-            },
-            { json: 'entropy', js: 'entropy', typ: '' },
-            {
-                json: 'light_blocks',
-                js: 'light_blocks',
-                typ: a(r('LightBlock')),
-            },
+            { json: 'commit', js: 'commit', typ: a(0) },
+            { json: 'hashes', js: 'hashes', typ: r('Hashes') },
+        ],
+        'any'
+    ),
+    Hashes: o(
+        [
+            { json: 'first_hash', js: 'first_hash', typ: a(0) },
+            { json: 'following_hashes', js: 'following_hashes', typ: a(a(0)) },
         ],
         'any'
     ),
@@ -543,65 +473,6 @@ const typeMap: any = {
         [
             { json: 'app', js: 'app', typ: u(undefined, '') },
             { json: 'block', js: 'block', typ: '' },
-        ],
-        'any'
-    ),
-    LightBlock: o(
-        [
-            {
-                json: 'signed_header',
-                js: 'signed_header',
-                typ: r('SignedHeader'),
-            },
-            {
-                json: 'validators',
-                js: 'validators',
-                typ: a(r('ValidatorInfo')),
-            },
-        ],
-        'any'
-    ),
-    SignedHeader: o(
-        [
-            { json: 'commit', js: 'commit', typ: r('Commit') },
-            { json: 'header', js: 'header', typ: r('Header') },
-        ],
-        'any'
-    ),
-    Commit: o(
-        [
-            { json: 'block_id', js: 'block_id', typ: r('BlockID') },
-            { json: 'height', js: 'height', typ: '' },
-            { json: 'round', js: 'round', typ: 0 },
-            { json: 'signatures', js: 'signatures', typ: a(r('CommitSig')) },
-        ],
-        'any'
-    ),
-    CommitSig: o(
-        [
-            { json: 'block_id_flag', js: 'block_id_flag', typ: 0 },
-            {
-                json: 'signature',
-                js: 'signature',
-                typ: u(undefined, u(null, '')),
-            },
-            { json: 'timestamp', js: 'timestamp', typ: '' },
-            { json: 'validator_address', js: 'validator_address', typ: '' },
-        ],
-        'any'
-    ),
-    ValidatorInfo: o(
-        [
-            { json: 'address', js: 'address', typ: '' },
-            { json: 'pub_key', js: 'pub_key', typ: r('PublicKey') },
-            { json: 'voting_power', js: 'voting_power', typ: '' },
-        ],
-        'any'
-    ),
-    PublicKey: o(
-        [
-            { json: 'type', js: 'type', typ: r('Type') },
-            { json: 'value', js: 'value', typ: '' },
         ],
         'any'
     ),
@@ -660,5 +531,4 @@ const typeMap: any = {
         'any'
     ),
     QueryMsg: o([{ json: 'config', js: 'config', typ: m('any') }], 'any'),
-    Type: ['tendermint/PubKeyEd25519'],
 };

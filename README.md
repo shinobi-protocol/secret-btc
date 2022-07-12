@@ -41,13 +41,10 @@ This command runs
 The accounts on local SecretNetwork with funds:
 
 ```text
-acccount a
-mnemonic:"orient naive top during tuition orient action health fly snake extra spare robust matter drill broccoli sphere clinic fossil kit hole jungle broccoli cause"
-address:secret15sf7vvlyx2zfeq2ank73z9kj4wez6knl4eyc03
-
-acccount b
-mnemonic:"person action voice chest push frog insect follow daring ritual dog hamster cream husband pull chair rain clog gauge stereo mask vast during outside"
-address:secret1daxrh4yenjvtnhf2qu9rdgpszwzg9794rpck8f
+a_mnemonic="grant rice replace explain federal release fix clever romance raise often wild taxi quarter soccer fiber love must tape steak together observe swap guitar"
+b_mnemonic="jelly shadow frog dirt dragon use armed praise universe win jungle close inmate rain oil canvas beauty pioneer chef soccer icon dizzy thunder meadow"
+c_mnemonic="chair love bleak wonder skirt permit say assist aunt credit roast size obtain minute throw sand usual age smart exact enough room shadow charge"
+d_mnemonic="word twist toast cloth movie predict advance crumble escape whale sail such angry muffin balcony keen move employ cook valve hurt glimpse breeze brick"
 ```
 
 ### 3. Deploy contracts

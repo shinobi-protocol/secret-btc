@@ -100,12 +100,82 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "required": [
+        "verify_subsequent_light_blocks"
+      ],
+      "properties": {
+        "verify_subsequent_light_blocks": {
+          "type": "object",
+          "required": [
+            "committed_hashes"
+          ],
+          "properties": {
+            "committed_hashes": {
+              "$ref": "#/definitions/CommittedHashes"
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
+    },
+    "Commit": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint8",
+        "minimum": 0.0
+      }
+    },
+    "CommittedHashes": {
+      "type": "object",
+      "required": [
+        "commit",
+        "hashes"
+      ],
+      "properties": {
+        "commit": {
+          "$ref": "#/definitions/Commit"
+        },
+        "hashes": {
+          "$ref": "#/definitions/Hashes"
+        }
+      }
+    },
+    "Hashes": {
+      "type": "object",
+      "required": [
+        "first_hash",
+        "following_hashes"
+      ],
+      "properties": {
+        "first_hash": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          }
+        },
+        "following_hashes": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
     }
   }
 }

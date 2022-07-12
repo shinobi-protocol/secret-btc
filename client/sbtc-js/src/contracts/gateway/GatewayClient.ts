@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { Account, SigningCosmWasmClient } from 'secretjs';
+import { Account, SecretNetworkClient } from 'secretjs';
 import { encodingLength } from 'bip174/src/lib/converter/varint';
 import { address, Network, Transaction } from 'bitcoinjs-lib';
 import { MerkleProof } from '../bitcoin_spv/BitcoinMerkleTree';
@@ -26,7 +26,7 @@ import { Logger } from 'winston';
 import { BitcoinSPVClient } from '../bitcoin_spv/BitcoinSPVClient';
 import { FinanceAdminClient } from '../finance_admin_v1/FinanceAdminClient';
 import { TxResult } from '../../TendermintRPCClient';
-import { HeaderElement } from '../sfps/types';
+import { CurrentHighestHeaderElement as HeaderElement } from '../sfps/types';
 
 type ExecuteResult<ANSWER> = GenericExecuteResult<HandleMsg, ANSWER>;
 
@@ -55,11 +55,11 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
 
     constructor(
         contractAddress: string,
-        signingCosmWasmClient: SigningCosmWasmClient,
+        secretNetworkClient: SecretNetworkClient,
         logger: Logger,
         viewingKey?: string
     ) {
-        super(contractAddress, signingCosmWasmClient, logger);
+        super(contractAddress, secretNetworkClient, logger);
         this.viewingKey = viewingKey;
     }
 
@@ -257,7 +257,7 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         }
         const answer = await this.query({
             mint_address: {
-                address: this.signingCosmWasmClient.senderAddress,
+                address: this.secretNetworkClient.address,
                 key: viewingKey,
             },
         });
@@ -337,7 +337,7 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
                     inputWeight +
                     TXOUT_COUNT_WEIGHT +
                     outputWeight) /
-                    4
+                4
             ) * feePerVb
         );
     }
@@ -350,22 +350,22 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         this.referenceContractClients = {
             sfps: new SFPSClient(
                 config.sfpsContractAddress,
-                this.signingCosmWasmClient,
+                this.secretNetworkClient,
                 this.logger
             ),
             sbtc: new TokenClient(
                 config.sbtcContractAddress,
-                this.signingCosmWasmClient,
+                this.secretNetworkClient,
                 this.logger
             ),
             bitcoinSPV: new BitcoinSPVClient(
                 config.bitcoinSPVContractAddress,
-                this.signingCosmWasmClient,
+                this.secretNetworkClient,
                 this.logger
             ),
             financeAdmin: new FinanceAdminClient(
                 config.financeAdminContractAddress,
-                this.signingCosmWasmClient,
+                this.secretNetworkClient,
                 this.logger
             ),
         };

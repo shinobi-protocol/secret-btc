@@ -1,6 +1,5 @@
-import { SigningCosmWasmClient, FeeTable } from 'secretjs';
 import fs from 'fs';
-import { buildClient, waitForNode } from './buildClient';
+import { SecretNetworkClient, Wallet } from 'secretjs';
 
 export interface ContractReference {
     address: string;
@@ -26,44 +25,69 @@ export interface ContractDeployReport {
 const CONTRACTS_DIR_PATH = '../contracts';
 const DEPLOY_REPORTS_PATH = '../deploy_reports';
 
+export const waitForNode = async (
+    client: SecretNetworkClient,
+) => {
+    let isNodeReady = false;
+    while (!isNodeReady) {
+        try {
+            const account = await client.query.auth.account({ address: client.address });
+            if (account !== undefined) {
+                console.log('node is ready');
+                isNodeReady = true;
+            }
+        } catch (_) {
+        } finally {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+    }
+};
+
 export class ContractDeployer {
-    public client: SigningCosmWasmClient;
+    public client: SecretNetworkClient;
     public environment: string;
     public timestamp: number;
     public gitCommitHash: string;
+    public transactionWaitTime: number;
     public contractDeployReports: Record<string, ContractDeployReport> = {};
 
     constructor(
-        client: SigningCosmWasmClient,
+        client: SecretNetworkClient,
         environment: string,
         timestamp: number,
-        gitCommitHash: string
+        gitCommitHash: string,
+        transactionWaitTime: number
     ) {
         this.client = client;
         this.environment = environment;
         this.timestamp = timestamp;
         this.gitCommitHash = gitCommitHash;
+        this.transactionWaitTime = transactionWaitTime;
     }
 
     public static async init(
         mnemonic: string,
-        lcdUrl: string,
+        grpcWebUrl: string,
+        chainId: string,
         environment: string,
         gitCommitHash: string,
-        customFees?: Partial<FeeTable>
+        transactionWaitTime: number,
     ): Promise<ContractDeployer> {
-        const { client, deployerAddress } = await buildClient(
-            mnemonic,
-            lcdUrl,
-            customFees
-        );
+        const wallet = new Wallet(mnemonic);
+        const client = await SecretNetworkClient.create({
+            grpcWebUrl,
+            chainId,
+            wallet,
+            walletAddress: wallet.address
+        })
         console.log('waiting for node ...');
-        await waitForNode(client, deployerAddress);
+        await waitForNode(client);
         return new ContractDeployer(
             client,
             environment,
             Math.floor(Date.now() / 1000),
-            gitCommitHash
+            gitCommitHash,
+            transactionWaitTime
         );
     }
 
@@ -76,33 +100,35 @@ export class ContractDeployer {
 
         console.log('Uploading contract...');
         const wasm = this.loadWasm(contractDir);
-        const uploadReceipt = await this.client.upload(wasm, {});
+        const uploadResult = await this.client.tx.compute.storeCode({ sender: this.client.address, wasmByteCode: wasm, source: '', builder: '' }, { gasLimit: 10000000 });
         await this.wait();
-        console.log('Uploaded');
+        console.log('Uploaded', uploadResult);
 
-        const codeId = uploadReceipt.codeId;
+        const codeId = parseInt(uploadResult.jsonLog![0].events[0].attributes[3].value, 10);
         console.log('Code id: ', codeId);
-        const hash = await this.client.getCodeHashByCodeId(codeId);
-        console.log('Contract hash: ', hash);
+        const codeHash = await this.client.query.compute.codeHash(codeId);
+        console.log('Contract hash: ', codeHash);
 
         console.log('Instantiating contract...');
         console.log(JSON.stringify(initMsg, null, 2));
         const label = this.buildContractLabel(contractName);
-        const initReceipt = await this.client.instantiate(
+        const initResult = await this.client.tx.compute.instantiateContract({
+            sender: this.client.address,
             codeId,
             initMsg,
-            label
-        );
+            label,
+            codeHash: codeHash
+        }, { gasLimit: 250000 });
         await this.wait();
-        console.log('Instantiated');
-        console.log('Contract deployed: ', { initReceipt, codeId, hash });
+        console.log('Instantiated', initResult);
+        console.log('Contract deployed: ', { initResult, codeId, codeHash });
         console.groupEnd();
 
         const report = {
-            uploadTxHash: uploadReceipt.transactionHash,
-            initTxHash: initReceipt.transactionHash,
+            uploadTxHash: uploadResult.transactionHash,
+            initTxHash: initResult.transactionHash,
             label,
-            reference: { address: initReceipt.contractAddress, hash },
+            reference: { address: initResult.jsonLog![0].events[1].attributes[0].value, hash: codeHash },
             initMsg,
         };
         this.contractDeployReports[contractName] = report;
@@ -122,7 +148,7 @@ export class ContractDeployer {
             )
         );
         console.log('Executing...');
-        await this.client.execute(contractInfo.address, msg);
+        await this.client.tx.compute.executeContract({ sender: this.client.address, contractAddress: contractInfo.address, codeHash: contractInfo.hash, msg }, { gasLimit: 250000 });
         console.log('Executed');
         console.groupEnd();
         await this.wait();
@@ -154,12 +180,12 @@ export class ContractDeployer {
             timestamp: this.timestamp,
             gitCommitHash: this.gitCommitHash,
             environment: this.environment,
-            deployerAddress: this.client.senderAddress,
+            deployerAddress: this.client.address,
             contracts: this.contractDeployReports,
         };
     }
 
     private async wait(): Promise<void> {
-        return new Promise((resolve) => setTimeout(resolve, 5000));
+        return new Promise((resolve) => setTimeout(resolve, this.transactionWaitTime));
     }
 }

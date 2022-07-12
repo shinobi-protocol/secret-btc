@@ -1,19 +1,16 @@
-use crate::state::{StorageChainDB, PREFIX_PRNG};
+use crate::state::StorageLightClientDB;
 use cosmwasm_std::{Api, Env, Extern, InitResponse, Querier, StdError, StdResult, Storage};
-use sfps_lib::header_chain::HeaderChain;
-use shared_types::prng::init_prng;
+use sfps_lib::light_client::LightClient;
 use shared_types::sfps::InitMsg;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    env: Env,
+    _env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    init_prng(&mut deps.storage, PREFIX_PRNG, &env, msg.entropy.as_slice())?;
-
-    let chaindb = StorageChainDB::from_storage(&mut deps.storage);
-    let mut header_chain = HeaderChain::new(chaindb);
-    header_chain
+    let chaindb = StorageLightClientDB::from_storage(&mut deps.storage);
+    let mut light_client = LightClient::new(chaindb);
+    light_client
         .init(msg.initial_header, msg.max_interval)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
 

@@ -27,7 +27,7 @@
         "bignumber.js": "^9.0.1",
         "bip174": "^2.0.1",
         "bitcoinjs-lib": "^5.2.0",
-        "secretjs": "0.17.3",
+        "secretjs": "@beta",
         "winston": "^3.3.3"
     },
     "devDependencies": {

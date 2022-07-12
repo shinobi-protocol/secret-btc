@@ -1,10 +1,13 @@
-use crate::state::StorageChainDB;
+use crate::contract::api_ed25519_verifier::ApiEd25519Verifier;
+use crate::state::StorageLightClientDB;
 use aes_siv::aead::generic_array::GenericArray;
 use aes_siv::siv::Aes128Siv;
 use cosmwasm_std::{
     to_binary, Api, Binary, Extern, Querier, QueryResult, StdError, StdResult, Storage,
 };
-use sfps_lib::header_chain::HeaderChain;
+use sfps_lib::light_block::header::Header;
+use sfps_lib::light_block::LightBlock;
+use sfps_lib::light_client::{LightClient, ReadonlyLightClientDB};
 use sfps_lib::tx_result_proof::TxResultProof;
 use shared_types::sfps::{QueryAnswer, QueryMsg};
 
@@ -21,22 +24,24 @@ pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryM
         } => {
             query_verify_tx_result_proof(&deps, tx_result_proof, header_hash_index, encryption_key)
         }
+        QueryMsg::VerifySubsequentLightBlocks {
+            current_highest_header,
+            light_blocks,
+        } => query_verify_subsequent_light_blocks(&deps, current_highest_header, light_blocks),
     }
 }
 
 fn query_max_interval<S: Storage>(storage: &S) -> QueryResult {
-    let chain_db = StorageChainDB::from_readonly_storage(storage);
-    let header_chain = HeaderChain::new(chain_db);
-    let max_interval = header_chain.get_max_interval();
+    let mut light_client_db = StorageLightClientDB::from_readonly_storage(storage);
+    let max_interval = light_client_db.get_max_interval();
     let response = QueryAnswer::MaxInterval { max_interval };
     Ok(to_binary(&response)?)
 }
 
 fn query_current_highest_header_hash<S: Storage>(storage: &S) -> QueryResult {
-    let chain_db = StorageChainDB::from_readonly_storage(storage);
-    let header_chain = HeaderChain::new(chain_db);
-    // this unwrap is ok because header_chain is initialized at contract initialization
-    let hash = header_chain.get_highest_hash().unwrap();
+    let mut light_client_db = StorageLightClientDB::from_readonly_storage(storage);
+    // this unwrap is ok because light_client is initialized at contract initialization
+    let hash = light_client_db.get_highest_hash().unwrap();
     let response = QueryAnswer::CurrentHighestHeaderHash {
         hash: Binary::from(hash),
     };
@@ -44,9 +49,8 @@ fn query_current_highest_header_hash<S: Storage>(storage: &S) -> QueryResult {
 }
 
 fn query_hash_list_length<S: Storage>(storage: &S) -> QueryResult {
-    let chain_db = StorageChainDB::from_readonly_storage(storage);
-    let header_chain = HeaderChain::new(chain_db);
-    let length = header_chain.get_hash_list_length();
+    let mut light_client_db = StorageLightClientDB::from_readonly_storage(storage);
+    let length = light_client_db.get_hash_list_length();
     let response = QueryAnswer::HashListLength {
         length: length as u64,
     };
@@ -54,9 +58,8 @@ fn query_hash_list_length<S: Storage>(storage: &S) -> QueryResult {
 }
 
 fn query_hash_by_index<S: Storage>(storage: &S, index: u64) -> QueryResult {
-    let chain_db = StorageChainDB::from_readonly_storage(storage);
-    let header_chain = HeaderChain::new(chain_db);
-    let hash = header_chain
+    let mut light_client_db = StorageLightClientDB::from_readonly_storage(storage);
+    let hash = light_client_db
         .get_hash_by_index(index as usize)
         .ok_or_else(|| StdError::generic_err("no hash"))?;
     let response = QueryAnswer::HashByIndex {
@@ -72,9 +75,9 @@ fn query_verify_tx_result_proof<S: Storage, A: Api, Q: Querier>(
     encryption_key: Binary,
 ) -> QueryResult {
     // Verify Merkle Proof
-    let chaindb = StorageChainDB::from_readonly_storage(&deps.storage);
-    let header_chain = HeaderChain::new(chaindb);
-    header_chain
+    let chaindb = StorageLightClientDB::from_readonly_storage(&deps.storage);
+    let mut light_client = LightClient::new(chaindb);
+    light_client
         .verify_tx_result_proof(&tx_result_proof, header_hash_index as usize)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
 
@@ -91,6 +94,24 @@ fn query_verify_tx_result_proof<S: Storage, A: Api, Q: Querier>(
     )?;
 
     let res = QueryAnswer::VerifyTxResultProof { decrypted_data };
+    Ok(to_binary(&res)?)
+}
+
+fn query_verify_subsequent_light_blocks<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    current_highest_header: Header,
+    light_blocks: Vec<LightBlock>,
+) -> QueryResult {
+    let chaindb = StorageLightClientDB::from_readonly_storage(&deps.storage);
+    let mut light_client = LightClient::new(chaindb);
+    let committed_hashes = light_client
+        .verify_subsequent_light_blocks(
+            current_highest_header,
+            light_blocks,
+            &mut ApiEd25519Verifier { api: &deps.api },
+        )
+        .map_err(|e| StdError::generic_err(e.to_string()))?;
+    let res = QueryAnswer::VerifySubsequentLightBlocks { committed_hashes };
     Ok(to_binary(&res)?)
 }
 

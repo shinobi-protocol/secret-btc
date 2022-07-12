@@ -86,7 +86,7 @@ class FinanceAdminClient extends ContractClient<
         });
         return result.release_fee!;
     }
-  
+
     public async latestBitcoinSPVReward(
         unitConverter: UnitConverter
     ): Promise<BigNumber> {

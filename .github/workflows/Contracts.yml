@@ -27,7 +27,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -63,7 +63,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           override: true
           components: rustfmt, clippy
 
@@ -83,7 +83,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -119,7 +119,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           override: true
           components: rustfmt, clippy
 
@@ -139,7 +139,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -175,7 +175,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           override: true
           components: rustfmt, clippy
 
@@ -195,7 +195,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -231,7 +231,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           override: true
           components: rustfmt, clippy
 
@@ -251,7 +251,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -287,7 +287,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           override: true
           components: rustfmt, clippy
 
@@ -307,7 +307,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -343,7 +343,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           override: true
           components: rustfmt, clippy
 
@@ -363,7 +363,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -399,7 +399,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           override: true
           components: rustfmt, clippy
 
@@ -419,7 +419,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -455,7 +455,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           override: true
           components: rustfmt, clippy
 
@@ -475,7 +475,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -484,28 +484,6 @@ jobs:
         with:
           command: test
           args: --locked --manifest-path=contracts/libs/bitcoin_header_chain/Cargo.toml
-        env:
-          RUST_BACKTRACE: 1
-
-  ed26619-dalek-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.53.0
-          target: wasm32-unknown-unknown
-          override: true
-
-      - name: Run unit tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path=contracts/libs/ed25519-dalek/Cargo.toml
         env:
           RUST_BACKTRACE: 1
 
@@ -519,7 +497,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -541,7 +519,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.53.0
+          toolchain: 1.60.0
           target: wasm32-unknown-unknown
           override: true
 

@@ -6,7 +6,6 @@ import { ShurikenClient } from 'sbtc-js/build/contracts/shuriken/ShurikenClient'
 import { Header, TendermintRPCClient } from 'sbtc-js/build/TendermintRPCClient';
 import { Logger } from 'winston';
 import { PrefixedLogger } from './PrefixedLogger';
-import { randomBytes } from 'crypto';
 
 export default class TendermintSyncClient {
     shurikenClient: ShurikenClient;
@@ -50,31 +49,32 @@ export default class TendermintSyncClient {
             return estimated;
         }
         const searchBlockRange = 1000;
-        const currentBlock = await this.shurikenClient.signingCosmWasmClient.getBlock();
-        const query = `wasm.contract_address=${
-            this.shurikenClient.contractAddress
-        }&message.signer=${this.shurikenClient.senderAddress()}&tx.minheight=${Math.max(
-            currentBlock.header.height - searchBlockRange,
-            1
-        )}&limit=100`;
+        const currentBlock = (await this.shurikenClient.secretNetworkClient.query.tendermint.getLatestBlock({})).block!;
+        const query = `wasm.contract_address='${this.shurikenClient.contractAddress
+            }' AND message.signer='${this.shurikenClient.senderAddress()}' AND tx.minheight=${Math.max(
+                parseInt(currentBlock.header!.height!, 10) - searchBlockRange,
+                1
+            )}`;
         try {
-            const result = await this.shurikenClient.signingCosmWasmClient.restClient.txsQuery(
+            const result = await this.shurikenClient.secretNetworkClient.query.txsQuery(
                 query
             );
-            const proxyGasUsedArray = result.txs
+            console.log('txquery', query);
+            console.log('txquery result', JSON.stringify(result));
+            const proxyGasUsedArray = result
                 .filter(
                     (tx) =>
-                        tx.logs![0].events.filter(
+                        tx.jsonLog![0].events.filter(
                             (event) =>
                                 event.type === 'wasm' &&
                                 event.attributes.filter(
                                     (event) =>
                                         event.key === 'contract_address' &&
                                         event.value ===
-                                            this.sfpsClient.contractAddress
+                                        this.sfpsClient.contractAddress
                                 ).length
                         ).length &&
-                        tx.logs![0].events.filter(
+                        tx.jsonLog![0].events.filter(
                             (event) =>
                                 event.type === 'message' &&
                                 event.attributes.filter(
@@ -84,12 +84,12 @@ export default class TendermintSyncClient {
                                 )
                         ).length
                 )
-                .map((tx) => parseInt(tx.gas_used!, 10));
+                .map((tx) => tx.gasUsed!);
             return proxyGasUsedArray.length
                 ? Math.min(
-                      Math.ceil(Math.max(...proxyGasUsedArray) * 1.1),
-                      9999999
-                  )
+                    Math.ceil(Math.max(...proxyGasUsedArray) * 1.1),
+                    9999999
+                )
                 : undefined;
         } catch (e) {
             /// if search query does not match, rest client throws following error
@@ -141,10 +141,11 @@ export default class TendermintSyncClient {
             })
         );
         console.log('msg length: ', JSON.stringify(lightBlocks).length);
-        return await this.shurikenClient.proxySFPSAddLightBlock(
-            this.contractBestHeader!,
-            lightBlocks,
-            randomBytes(32),
+        const committedHashes = await this.sfpsClient.verifySubsequentLightBlocks(this.contractBestHeader!, lightBlocks);
+        console.log('commitedHashes', JSON.stringify(committedHashes));
+        return await this.shurikenClient.proxySFPSAppendSubsequentHashes(
+            committedHashes,
+            headers[headers.length - 1],
             await this.estimateGasUsed()
         );
     }
@@ -160,7 +161,7 @@ export default class TendermintSyncClient {
         this.logger.log(`Best height on network: ${maxHeight}`);
         const results = [];
         const contractHeight = parseInt(this.contractBestHeader!.height);
-        this.logger.log(`Best height on contract: ${contractHeight}`);
+        this.logger.log(`Best height on contract: ${contractHeight} `);
         let lastHeight = contractHeight;
         while (this.headersForSync.length > 0) {
             const height = parseInt(
@@ -180,12 +181,12 @@ export default class TendermintSyncClient {
         ) {
             const header = (await this.tendermintClient.getBlock(height)).block
                 .header;
-            this.logger.log(`check ${height}`);
+            this.logger.log(`check ${height} `);
             if (
                 header.validators_hash != header.next_validators_hash ||
                 height - lastHeight == this.maxInterval
             ) {
-                this.logger.log(`sync ${height}`);
+                this.logger.log(`sync ${height} `);
                 this.headersForSync.push(header);
                 lastHeight = parseInt(header.height);
             }
@@ -207,7 +208,7 @@ export default class TendermintSyncClient {
                     );
                     this.logger.log(
                         'out of gas. gasUsed = ' +
-                            this.gasUsedOfLastOutOfGas.toString()
+                        this.gasUsedOfLastOutOfGas.toString()
                     );
                     this.headersForSync = headers.concat(this.headersForSync);
                 } else {

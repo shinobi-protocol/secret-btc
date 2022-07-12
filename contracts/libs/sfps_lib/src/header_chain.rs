@@ -1,15 +1,15 @@
 use crate::light_block::header::Header;
+use crate::light_block::Ed25519Verifier;
 use crate::light_block::{Error as LightBlockError, LightBlock};
 use crate::tx_result_proof::{Error as TxResultProofError, TxResultProof};
-use ed25519_dalek::rand::Rng;
 use std::convert::TryInto;
 use std::fmt;
 
 pub trait ReadonlyChainDB {
-    fn get_hash_by_index(&self, index: usize) -> Option<Vec<u8>>;
-    fn get_highest_hash(&self) -> Option<Vec<u8>>;
-    fn get_hash_list_length(&self) -> usize;
-    fn get_max_interval(&self) -> u64;
+    fn get_hash_by_index(&mut self, index: usize) -> Option<Vec<u8>>;
+    fn get_highest_hash(&mut self) -> Option<Vec<u8>>;
+    fn get_hash_list_length(&mut self) -> usize;
+    fn get_max_interval(&mut self) -> u64;
 }
 
 pub trait ChainDB: ReadonlyChainDB {
@@ -69,21 +69,8 @@ impl<C: ReadonlyChainDB> HeaderChain<C> {
     pub fn new(chain_db: C) -> Self {
         Self { chain_db }
     }
-    pub fn get_hash_by_index(&self, index: usize) -> Option<Vec<u8>> {
-        self.chain_db.get_hash_by_index(index)
-    }
-    pub fn get_highest_hash(&self) -> Option<Vec<u8>> {
-        self.chain_db.get_highest_hash()
-    }
-    pub fn get_hash_list_length(&self) -> usize {
-        self.chain_db.get_hash_list_length()
-    }
-    pub fn get_max_interval(&self) -> u64 {
-        self.chain_db.get_max_interval()
-    }
-
     pub fn verify_tx_result_proof(
-        &self,
+        &mut self,
         tx_result_proof: &TxResultProof,
         header_hash_index: usize,
     ) -> Result<(), Error> {
@@ -99,7 +86,7 @@ impl<C: ReadonlyChainDB> HeaderChain<C> {
 
 impl<C: ChainDB> HeaderChain<C> {
     pub fn init(&mut self, header: Header, max_interval: u64) -> Result<(), Error> {
-        if self.get_hash_list_length() > 0 {
+        if self.chain_db.get_hash_list_length() > 0 {
             return Err(Error::AlreadyInitialized);
         }
         self.append_header(header)?;
@@ -108,11 +95,11 @@ impl<C: ChainDB> HeaderChain<C> {
             .map_err(|e| Error::ChainDB(format!("{}", e)))
     }
 
-    pub fn add_block_to_highest<R: Rng>(
+    pub fn add_block_to_highest<E: Ed25519Verifier>(
         &mut self,
         current_highest_header: &Header,
         light_block: LightBlock,
-        rng: &mut R,
+        ed25519_verifier: &mut E,
     ) -> Result<(), Error> {
         {
             let actual: u64 = light_block
@@ -138,21 +125,21 @@ impl<C: ChainDB> HeaderChain<C> {
         self.verify_block(
             &current_highest_header.next_validators_hash,
             &light_block,
-            rng,
+            ed25519_verifier,
         )?;
         self.append_header(light_block.signed_header.header)
     }
 
-    fn verify_block<R: Rng>(
+    fn verify_block<E: Ed25519Verifier>(
         &self,
         validators_hash: &[u8],
         light_block: &LightBlock,
-        rng: &mut R,
+        ed25519_verifier: &mut E,
     ) -> Result<(), Error> {
         if validators_hash != light_block.signed_header.header.validators_hash {
             return Err(Error::UnmatchedValidatorsHash);
         }
-        light_block.verify(rng)?;
+        light_block.verify(ed25519_verifier)?;
         Ok(())
     }
 

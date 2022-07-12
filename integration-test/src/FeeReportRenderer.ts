@@ -1,12 +1,6 @@
-import TxFeeResult from 'sbtc-js/build/TxFeeResult/TxFeeResult';
-import { ExecuteResult } from 'sbtc-js/build/contracts/ContractClient';
 import * as fs from 'fs';
+import { ExecuteResult } from 'sbtc-js/build/contracts/ContractClient';
 
-export interface FeeReport {
-    executeResult: ExecuteResult<any, any>;
-    txFeeResult: TxFeeResult;
-    metadata?: string;
-}
 
 export interface Writer {
     write(str: string): void;
@@ -35,28 +29,27 @@ export class FeeReportRenderer {
             [
                 '# Fee Report',
                 '',
-                '| Contract | Function | Message Length | Gas Used | Fee On SCRT (gasPrice = 0.25) | metadata |',
-                '| -------- | -------  | -------------: | -------: | ----------------------------: | -------- |',
+                '| Contract | Function | Message Length | Gas Used | Fee On SCRT (gasPrice = 0.25) |',
+                '| -------- | -------  | -------------: | -------: | ----------------------------: |',
             ].join('\n')
         );
     }
 
-    public writeRow(feeReport: FeeReport): void {
-        this.writer.write(this.feeReportToRow(feeReport));
+    public writeRow(executeResult: ExecuteResult<any, any>): void {
+        this.writer.write(this.executeResultToRow(executeResult));
     }
 
-    private feeReportToRow(feeReport: FeeReport): string {
-        const contract = feeReport.executeResult.contractDetails.label;
-        const functionName = Object.keys(feeReport.executeResult.msg)[0];
+    private executeResultToRow(executeResult: ExecuteResult<any, any>): string {
+        const contract = executeResult.contractInfo.label;
+        const functionName = Object.keys(executeResult.msg)[0];
         const messageLength = JSON.stringify(
-            Object.values(feeReport.executeResult.msg)[0]
+            Object.values(executeResult.msg)[0]
         ).length;
-        const gasUsed = feeReport.txFeeResult.gasUsed.toLocaleString();
+        const gasUsed = executeResult.tx.gasUsed.toLocaleString();
         const feeOnSCRT = (
-            (feeReport.txFeeResult.gasUsed * 0.25) /
+            (executeResult.tx.gasUsed * 0.25) /
             10 ** 6
         ).toLocaleString();
-        const metadata = feeReport.metadata || '';
-        return `\n| ${contract} | ${functionName} | ${messageLength} | ${gasUsed} | ${feeOnSCRT} | ${metadata} |`;
+        return `\n| ${contract} | ${functionName} | ${messageLength} | ${gasUsed} | ${feeOnSCRT} |`;
     }
 }

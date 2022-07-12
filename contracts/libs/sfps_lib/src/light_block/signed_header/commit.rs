@@ -30,6 +30,7 @@ mod test {
     use crate::light_block::header::fields::PartSetHeader;
     use crate::light_block::signed_header::commit::vote::CommitVote;
     use std::convert::TryInto;
+    use vote::Signature;
 
     #[test]
     fn test_deserialize_commit() {
@@ -78,7 +79,7 @@ mod test {
             vec![Vote::Commit(CommitVote {
                 validator_address: "2E76AE6E453395F35D6C0728D44FB6147CE5B5A0".into(),
                 timestamp: serde_json::from_str(r#""2021-11-23T16:07:43.581599777Z""#).unwrap(),
-                signature: base64::decode("rIt3m7ehMrIVRzzd3q6Ty6x3JGVutjKyEepb+VLVHmqzB76QgtbtHLRPm4Z5axTcUHf06hh8H2gCCiTN/jRYBg==").unwrap().as_slice().try_into().unwrap()
+                signature: Signature::new(base64::decode("rIt3m7ehMrIVRzzd3q6Ty6x3JGVutjKyEepb+VLVHmqzB76QgtbtHLRPm4Z5axTcUHf06hh8H2gCCiTN/jRYBg==").unwrap().as_slice().try_into().unwrap())
             })]
         );
     }

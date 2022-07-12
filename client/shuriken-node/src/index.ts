@@ -9,24 +9,25 @@ import BtcRpcClient from './BtcRpcClient';
 import BtcClientInterface from './BtcClientInterface';
 import RegtestUtilClient from './RegtestUtilClient';
 import { TendermintRPCClient } from 'sbtc-js/build/TendermintRPCClient';
-import { buildSigningCosmWasmClient } from 'sbtc-js/build/contracts/buildSigningCosmWasmClient';
 import { BitcoinSPVClient } from 'sbtc-js/build/contracts/bitcoin_spv/BitcoinSPVClient';
 import { createLogger, transports, format, Logger } from 'winston';
 import BtcSyncClient from './BtcSyncClient';
 import TendermintSyncClient from './TendermintSyncClient';
-import { SigningCosmWasmClient } from 'sbtc-js/node_modules/secretjs';
+import { SecretNetworkClient, Wallet } from 'sbtc-js/node_modules/secretjs';
 import { SFPSClient } from 'sbtc-js/build/contracts/sfps/SFPSClient';
 import { ShurikenClient } from 'sbtc-js/build/contracts/shuriken/ShurikenClient';
 
 config({ path: process.env.ENV_FILE || '.env' });
 
-const initSigningCosmWasmClient = async (): Promise<SigningCosmWasmClient> => {
-    console.log('initializing signing cosmwasm client...');
-    const httpUrl = process.env.SECRET_REST_URL!;
+const initSecretNetworkClient = async (): Promise<SecretNetworkClient> => {
+    console.log('initializing secret network client...');
+    const grpcWebUrl = process.env.GRPC_WEB_URL!;
     const mnemonic = process.env.MNEMONIC!;
-    console.log('httpUrl', httpUrl);
-    const client = await buildSigningCosmWasmClient(httpUrl, mnemonic);
-    await client.getAccount();
+    const chainId = process.env.CHAIN_ID!;
+    console.log('grpcWebUrl', grpcWebUrl);
+    const wallet = new Wallet(mnemonic);
+    const client = await SecretNetworkClient.create({ grpcWebUrl, wallet, chainId, walletAddress: wallet.address });
+    await client.query.auth.account({ address: client.address });
     console.log('Successfully connected to Secret Network');
     return client;
 };
@@ -38,7 +39,7 @@ interface ContractClients {
 }
 
 const initContractClients = async (
-    signingCosmWasmClient: SigningCosmWasmClient,
+    secretNetworkClient: SecretNetworkClient,
     logger: Logger
 ): Promise<ContractClients> => {
     console.log('initializing contract clients...');
@@ -47,19 +48,19 @@ const initContractClients = async (
 
     const shurikenClient = new ShurikenClient(
         shurikenAddress,
-        signingCosmWasmClient,
+        secretNetworkClient,
         logger
     );
     const config = await shurikenClient.config();
     console.log('Successfully connected to Shuriken Contract');
     const bitcoinSPVClient = new BitcoinSPVClient(
         config.bitcoin_spv.address,
-        signingCosmWasmClient,
+        secretNetworkClient,
         logger
     );
     const sfpsClient = new SFPSClient(
         config.sfps.address,
-        signingCosmWasmClient,
+        secretNetworkClient,
         logger
     );
     return { shurikenClient, bitcoinSPVClient, sfpsClient };
@@ -130,12 +131,12 @@ const main = async () => {
         format: format.combine(format.simple(), format.timestamp()),
     });
     const btcClient = await initBtcClient();
-    const signingCosmWasmClient = await initSigningCosmWasmClient();
+    const secretNetworkClient = await initSecretNetworkClient();
     const {
         shurikenClient,
         bitcoinSPVClient,
         sfpsClient,
-    } = await initContractClients(signingCosmWasmClient, logger);
+    } = await initContractClients(secretNetworkClient, logger);
     const tendermintClient = initTendermintClient();
     const btcSyncClient = new BtcSyncClient(
         shurikenClient,

@@ -2,7 +2,6 @@ use super::signature_message::signature_message;
 use super::Error;
 use crate::light_block::header::fields::BlockId;
 use crate::light_block::header::fields::Timestamp;
-use ed25519_dalek::Signature;
 use serde::Serializer;
 use serde::{de::Error as _, Deserialize, Deserializer, Serialize};
 use std::convert::{TryFrom, TryInto};
@@ -12,6 +11,25 @@ pub enum Vote {
     Absent,
     Commit(CommitVote),
     Nil(NilVote),
+}
+
+pub const SIGNATURE_LENGTH: usize = 64;
+
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub struct Signature([u8; SIGNATURE_LENGTH]);
+
+impl Signature {
+    pub fn new(bytes: [u8; SIGNATURE_LENGTH]) -> Self {
+        Self(bytes)
+    }
+
+    pub fn to_bytes(&self) -> [u8; SIGNATURE_LENGTH] {
+        self.0
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0[..]
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -60,9 +78,11 @@ impl TryFrom<CommitSig> for Vote {
         if block_id_flag == BlockIdFlag::Absent {
             return Ok(Self::Absent);
         }
-        let signature: Signature = Signature::try_from(
-            base64::decode(raw.signature.ok_or(Error::NoSignature)?)?.as_slice(),
-        )?;
+        let signature: Signature = Signature::new(
+            base64::decode(raw.signature.ok_or(Error::NoSignature)?)?
+                .try_into()
+                .map_err(|_| Error::DecodeSignature())?,
+        );
         if block_id_flag == BlockIdFlag::Commit {
             Ok(Self::Commit(CommitVote {
                 validator_address: raw.validator_address,
@@ -140,13 +160,13 @@ impl From<&Vote> for CommitSig {
                 block_id_flag: 2,
                 validator_address: vote.validator_address.to_string(),
                 timestamp: vote.timestamp.clone(),
-                signature: Some(base64::encode(vote.signature)),
+                signature: Some(base64::encode(vote.signature.to_bytes())),
             },
             Vote::Nil(vote) => Self {
                 block_id_flag: 3,
                 validator_address: vote.validator_address.to_string(),
                 timestamp: vote.timestamp.clone(),
-                signature: Some(base64::encode(vote.signature)),
+                signature: Some(base64::encode(vote.signature.to_bytes())),
             },
         }
     }

@@ -31,32 +31,33 @@ export default class BtcSyncClient {
 
     public async estimateGasUsed(): Promise<number | undefined> {
         const searchBlockRange = 1000;
-        const currentBlock = await this.shurikenClient.signingCosmWasmClient.getBlock();
-        const query = `wasm.contract_address=${
-            this.shurikenClient.contractAddress
-        }&message.signer=${this.shurikenClient.senderAddress()}&tx.minheight=${Math.max(
-            currentBlock.header.height - searchBlockRange,
-            1
-        )}`;
+        const currentBlock = await (await this.shurikenClient.secretNetworkClient.query.tendermint.getLatestBlock({})).block!;
+        const query = `wasm.contract_address='${this.shurikenClient.contractAddress
+            }' AND message.signer='${this.shurikenClient.senderAddress()}' AND tx.minheight=${Math.max(
+                parseInt(currentBlock.header!.height, 10) - searchBlockRange,
+                1
+            )}`;
         try {
-            const result = await this.shurikenClient.signingCosmWasmClient.restClient.txsQuery(
-                `${query}&limit=100`
+            const result = await this.shurikenClient.secretNetworkClient.query.txsQuery(
+                query
             );
-            const proxyGasUsedArray = result.txs
+            console.log('txquery', query);
+            console.log('txquery result', JSON.stringify(result));
+            const proxyGasUsedArray = result
                 .filter(
                     (tx) =>
-                        tx.logs![0].events.filter(
+                        tx.jsonLog![0].events.filter(
                             (event) =>
                                 event.type === 'wasm' &&
                                 event.attributes.filter(
                                     (event) =>
                                         event.key === 'contract_address' &&
                                         event.value ===
-                                            this.bitcoinSPVClient
-                                                .contractAddress
+                                        this.bitcoinSPVClient
+                                            .contractAddress
                                 ).length
                         ).length &&
-                        tx.logs![0].events.filter(
+                        tx.jsonLog![0].events.filter(
                             (event) =>
                                 event.type === 'message' &&
                                 event.attributes.filter(
@@ -66,7 +67,7 @@ export default class BtcSyncClient {
                                 )
                         ).length
                 )
-                .map((tx) => parseInt(tx.gas_used!, 10));
+                .map((tx) => tx.gasUsed!);
             return proxyGasUsedArray.length
                 ? Math.ceil(Math.max(...proxyGasUsedArray) * 1.1)
                 : undefined;
@@ -96,7 +97,7 @@ export default class BtcSyncClient {
         const headers: Block[] = [];
         const prevHash = Buffer.alloc(32);
         let id = btcBestId;
-        for (;;) {
+        for (; ;) {
             // extend header chain
             if (id === spvBestHash) {
                 this.logger.log('extend header chain');
@@ -106,11 +107,11 @@ export default class BtcSyncClient {
             if (
                 headers.length > btcBestHeight - spvBestHeight &&
                 id ===
-                    (
-                        await this.bitcoinSPVClient.blockHeader(
-                            btcBestHeight - headers.length
-                        )
-                    ).getId()
+                (
+                    await this.bitcoinSPVClient.blockHeader(
+                        btcBestHeight - headers.length
+                    )
+                ).getId()
             ) {
                 this.logger.log('detect chain folk parent');
                 break;

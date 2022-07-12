@@ -29,6 +29,13 @@ _compile-optimized:
 	@# The following line is not necessary, may work only on linux (extra size optimization)
 	wasm-opt -Os ./target/wasm32-unknown-unknown/release/*.wasm -o ./contract.wasm
 
+.PHONY: compile-optimized-full-signatures-test _compile-optimized-full-signatures-test
+compile-optimized-full-signatures-test: _compile-optimized-full-signatures-test contract.wasm.gz
+_compile-optimized-full-signatures-test:
+	RUSTFLAGS='-C link-arg=-s' cargo build --features "full_signatures_test" --release --target wasm32-unknown-unknown --locked
+	@# The following line is not necessary, may work only on linux (extra size optimization)
+	wasm-opt -Os ./target/wasm32-unknown-unknown/release/*.wasm -o ./contract.wasm
+
 .PHONY: compile-optimized-reproducible
 compile-optimized-reproducible:
 	docker run --rm -v "$$(pwd)":/contract \

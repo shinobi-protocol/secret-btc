@@ -36,24 +36,30 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             write_config(&mut deps.storage, config, &deps.api)?;
             vec![]
         }
-        HandleMsg::BitcoinSPVProxy { msg } => {
-            let (best_height, best_block_time) = match msg.clone() {
+        HandleMsg::BitcoinSPVAddHeaders {
+            tip_height,
+            headers,
+        } => {
+            let (best_height, best_block_time) = {
+                let best_header = deserialize::<BlockHeader>(
+                    headers
+                        .last()
+                        .ok_or_else(|| StdError::generic_err("no header"))?
+                        .as_slice(),
+                )
+                .map_err(|err| StdError::generic_err(err.to_string()))?;
+                (tip_height, best_header.time.into())
+            };
+            vec![
                 bitcoin_spv::HandleMsg::AddHeaders {
                     tip_height,
                     headers,
-                } => {
-                    let best_header = deserialize::<BlockHeader>(
-                        headers
-                            .last()
-                            .ok_or_else(|| StdError::generic_err("no header"))?
-                            .as_slice(),
-                    )
-                    .map_err(|err| StdError::generic_err(err.to_string()))?;
-                    (tip_height, best_header.time.into())
                 }
-            };
-            vec![
-                msg.to_cosmos_msg(config.bitcoin_spv.hash, config.bitcoin_spv.address, None)?,
+                .to_cosmos_msg(
+                    config.bitcoin_spv.hash,
+                    config.bitcoin_spv.address,
+                    None,
+                )?,
                 finance_admin::CommonHandleMsg::MintBitcoinSPVReward {
                     executer: env.message.sender,
                     best_height,
@@ -66,33 +72,39 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
                 )?,
             ]
         }
-        HandleMsg::SFPSProxy { msg } => {
-            let (best_height, best_block_time) = match &msg {
-                sfps::HandleMsg::AddLightBlocks { light_blocks, .. } => {
-                    let last_light_block = light_blocks
-                        .last()
-                        .ok_or_else(|| StdError::generic_err("no light block"))?;
-                    (
-                        last_light_block
-                            .signed_header
-                            .header
-                            .height
-                            .try_into()
-                            .unwrap(),
-                        last_light_block
-                            .signed_header
-                            .header
-                            .time
-                            .clone()
-                            .unwrap()
-                            .seconds
-                            .try_into()
-                            .unwrap(),
-                    )
-                }
+        HandleMsg::SFPSProxyAppendSubsequentHashes {
+            committed_hashes,
+            last_header,
+        } => {
+            let last_committed_hash = committed_hashes
+                .hashes
+                .following_hashes
+                .last()
+                .ok_or_else(|| StdError::generic_err("no committed hashes"))?
+                .clone();
+            if last_committed_hash != last_header.hash() {
+                return Err(StdError::generic_err(
+                    "last_header does not match to committed_hashes",
+                ));
+            }
+            let (best_height, best_block_time) = {
+                (
+                    last_header.height.try_into().unwrap(),
+                    last_header
+                        .time
+                        .clone()
+                        .unwrap()
+                        .seconds
+                        .try_into()
+                        .unwrap(),
+                )
             };
             vec![
-                msg.to_cosmos_msg(config.sfps.hash, config.sfps.address, None)?,
+                sfps::HandleMsg::AppendSubsequentHashes { committed_hashes }.to_cosmos_msg(
+                    config.sfps.hash,
+                    config.sfps.address,
+                    None,
+                )?,
                 finance_admin::CommonHandleMsg::MintSFPSReward {
                     executer: env.message.sender,
                     best_height,

@@ -1,28 +1,31 @@
 use crate::merkle::simple_hash_from_byte_vectors;
-use ed25519_dalek::{PublicKey as Ed25519, Signature, Verifier};
 use prost::{Message, Oneof};
 use serde::Serializer;
 use serde::{Deserialize, Deserializer, Serialize};
+use std::convert::TryFrom;
 use std::fmt;
+use std::string::ToString;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
-    Ed25519(String),
+    Ed25519FromBytes(String),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Ed25519(string) => write!(f, "ed25519 error: {}", string),
+            Error::Ed25519FromBytes(string) => write!(f, "ed25519 error: {}", string),
         }
     }
 }
 
-impl From<ed25519_dalek::ed25519::Error> for Error {
-    fn from(e: ed25519_dalek::ed25519::Error) -> Self {
-        Self::Ed25519(e.to_string())
+impl From<std::array::TryFromSliceError> for Error {
+    fn from(e: std::array::TryFromSliceError) -> Error {
+        Error::Ed25519FromBytes(e.to_string())
     }
 }
+
+pub type Ed25519PublicKey = [u8; 32];
 
 // Support Only Ed25519
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -34,24 +37,19 @@ pub enum PublicKey {
         deserialize_with = "deserialize_ed25519_base64",
         serialize_with = "serialize_ed25519_base64"
     )]
-    Ed25519(Ed25519),
+    Ed25519(Ed25519PublicKey),
 }
 
 impl PublicKey {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        Ok(Self::Ed25519(Ed25519::from_bytes(bytes)?))
-    }
-
-    pub fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), Error> {
-        self.extract().verify(msg, signature)?;
-        Ok(())
+        Ok(Self::Ed25519(Ed25519PublicKey::try_from(bytes)?))
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        self.extract().as_bytes()
+        &self.extract()[..]
     }
 
-    pub fn extract(&self) -> &Ed25519 {
+    pub fn extract(&self) -> &Ed25519PublicKey {
         match self {
             Self::Ed25519(pk) => pk,
         }
@@ -90,27 +88,24 @@ pub enum CanonicalPubkeySum {
     Secp256k1(Vec<u8>),
 }
 
-fn deserialize_ed25519_base64<'de, D>(deserializer: D) -> Result<Ed25519, D::Error>
+fn deserialize_ed25519_base64<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
 where
     D: Deserializer<'de>,
 {
     let string = String::deserialize(deserializer)?;
     let bytes = base64::decode(&string).map_err(serde::de::Error::custom)?;
-    Ed25519::from_bytes(&bytes).map_err(serde::de::Error::custom)
+    Ed25519PublicKey::try_from(bytes.as_slice()).map_err(serde::de::Error::custom)
 }
 
 /// Serialize the bytes of an Ed25519 public key as Base64. Used for serializing JSON
-fn serialize_ed25519_base64<S>(pk: &Ed25519, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_ed25519_base64<S>(pk: &Ed25519PublicKey, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    base64::encode(pk.as_bytes()).serialize(serializer)
+    base64::encode(&pk).serialize(serializer)
 }
 
 impl ValidatorInfo {
-    pub fn verify_signature(&self, msg: &[u8], signature: &Signature) -> Result<(), Error> {
-        self.pub_key.verify(msg, signature)
-    }
     fn hash_bytes(&self) -> Vec<u8> {
         let canonical: CanonicalValidator = self.into();
         canonical.encode_to_vec()

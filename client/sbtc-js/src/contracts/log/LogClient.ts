@@ -1,4 +1,4 @@
-import { SigningCosmWasmClient } from 'secretjs';
+import { SecretNetworkClient } from 'secretjs';
 import { Logger } from 'winston';
 import {
     ContractClient,
@@ -13,11 +13,11 @@ class LogClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
 
     constructor(
         contractAddress: string,
-        signingCosmWasmClient: SigningCosmWasmClient,
+        secretNetworkClient: SecretNetworkClient,
         logger: Logger,
         viewingKey?: string
     ) {
-        super(contractAddress, signingCosmWasmClient, logger);
+        super(contractAddress, secretNetworkClient, logger);
         this.viewingKey = viewingKey;
     }
 

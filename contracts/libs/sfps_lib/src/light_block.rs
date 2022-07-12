@@ -2,8 +2,6 @@ pub mod header;
 pub mod signed_header;
 pub mod validators;
 
-use ed25519_dalek::rand::Rng;
-use ed25519_dalek::verify_batch;
 use serde::{Deserialize, Serialize};
 use signed_header::SignedHeader;
 use signed_header::Vote;
@@ -46,6 +44,15 @@ impl From<signed_header::Error> for Error {
     }
 }
 
+pub trait Ed25519Verifier {
+    fn verify_batch(
+        &mut self,
+        messages: &[&[u8]],
+        signatures: &[&[u8]],
+        public_keys: &[&[u8]],
+    ) -> Result<(), Error>;
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct LightBlock {
     pub signed_header: SignedHeader,
@@ -53,9 +60,9 @@ pub struct LightBlock {
 }
 
 impl LightBlock {
-    pub fn verify<R: Rng>(&self, rng: &mut R) -> Result<(), Error> {
+    pub fn verify<E: Ed25519Verifier>(&self, ed25519_verifier: &mut E) -> Result<(), Error> {
         self.validate_basic()?;
-        self.verify_commit(rng)
+        self.verify_commit(ed25519_verifier)
     }
 
     fn validate_basic(&self) -> Result<(), Error> {
@@ -76,20 +83,20 @@ impl LightBlock {
     }
 
     //https://github.com/tendermint/tendermint/blob/5e52a6ec558f789b642a231c257f8754b97637bc/types/validator_set.go#L636
-    pub fn verify_commit<R: Rng>(&self, rng: &mut R) -> Result<(), Error> {
-        if self.voting_power(rng)? <= self.validators.total_voting_power() * 2 / 3 {
+    pub fn verify_commit<E: Ed25519Verifier>(&self, ed25519_verifier: &mut E) -> Result<(), Error> {
+        if self.voting_power(ed25519_verifier)? <= self.validators.total_voting_power() * 2 / 3 {
             return Err(Error::NotEnoughVotingPowerSigned);
         }
         Ok(())
     }
 
-    fn voting_power<R: Rng>(&self, rng: &mut R) -> Result<i64, Error> {
-        let commit = &self.signed_header.commit;
+    fn voting_power<E: Ed25519Verifier>(&self, ed25519_verifier: &mut E) -> Result<i64, Error> {
+        let commit = self.signed_header.commit.clone();
         let mut voting_power = 0;
         let mut messages = Vec::with_capacity(commit.signatures.len());
         let mut signatures = Vec::with_capacity(commit.signatures.len());
         let mut public_keys = Vec::with_capacity(commit.signatures.len());
-        for (index, commit_sig) in commit.signatures.clone().into_iter().enumerate() {
+        for (index, commit_sig) in commit.signatures.iter().enumerate() {
             let (is_commit, signature_message, signature) = match commit_sig {
                 Vote::Absent => continue,
                 Vote::Commit(vote) => (
@@ -118,7 +125,7 @@ impl LightBlock {
             let validator_info = self.validators.0.get(index).unwrap();
             messages.push(signature_message);
             signatures.push(signature);
-            public_keys.push(*validator_info.pub_key.extract());
+            public_keys.push(validator_info.pub_key.as_bytes());
             if is_commit {
                 voting_power += validator_info.voting_power;
             }
@@ -127,8 +134,11 @@ impl LightBlock {
         for message in messages.iter() {
             msg.push(message.as_slice());
         }
-        verify_batch(msg.as_slice(), &signatures, public_keys.as_slice(), rng)
-            .map_err(|_| Error::VerifyBatchFailed)?;
+        let mut sig = Vec::with_capacity(signatures.len());
+        for signature in signatures.iter() {
+            sig.push(signature.as_bytes());
+        }
+        ed25519_verifier.verify_batch(msg.as_slice(), sig.as_slice(), public_keys.as_slice())?;
         Ok(voting_power)
     }
 }
@@ -137,7 +147,28 @@ impl LightBlock {
 mod test {
     use super::*;
     use crate::light_block::signed_header::commit::vote::NilVote;
-    use crate::rand::thread_rng;
+
+    struct DalekEd25519Verifier();
+
+    impl Ed25519Verifier for DalekEd25519Verifier {
+        fn verify_batch(
+            &mut self,
+            messages: &[&[u8]],
+            signatures: &[&[u8]],
+            public_keys: &[&[u8]],
+        ) -> Result<(), Error> {
+            let mut sig = Vec::with_capacity(signatures.len());
+            for signature in signatures.iter() {
+                sig.push(ed25519_dalek::Signature::from_bytes(signature).unwrap())
+            }
+            let mut pubkeys = Vec::with_capacity(public_keys.len());
+            for public_key in public_keys.iter() {
+                pubkeys.push(ed25519_dalek::PublicKey::from_bytes(public_key).unwrap())
+            }
+            ed25519_dalek::verify_batch(messages, &sig, &pubkeys)
+                .map_err(|_| Error::VerifyBatchFailed {})
+        }
+    }
 
     const LIGHT_BLOCK_JSON: &str = r#"
     {
@@ -1087,17 +1118,17 @@ mod test {
     #[test]
     fn test_veirfy_sanity() {
         let light_block: LightBlock = serde_json::from_str(LIGHT_BLOCK_JSON).unwrap();
-        let mut rng = thread_rng();
-        light_block.verify(&mut rng).unwrap()
+        light_block.verify(&mut DalekEd25519Verifier {}).unwrap()
     }
 
     #[test]
     fn test_veirfy_invalid_header_hash() {
         let mut light_block: LightBlock = serde_json::from_str(LIGHT_BLOCK_JSON).unwrap();
-        let mut rng = thread_rng();
         light_block.signed_header.commit.block_id.hash = vec![0, 1, 2];
         assert_eq!(
-            light_block.verify(&mut rng).unwrap_err(),
+            light_block
+                .verify(&mut DalekEd25519Verifier {})
+                .unwrap_err(),
             Error::SignedHeader(signed_header::Error::InvalidHeaderHash {
                 commit: light_block.signed_header.commit.block_id.hash,
                 header: light_block.signed_header.header.hash().into()
@@ -1108,10 +1139,11 @@ mod test {
     #[test]
     fn test_veirfy_commit_for_different_hash() {
         let mut light_block: LightBlock = serde_json::from_str(LIGHT_BLOCK_JSON).unwrap();
-        let mut rng = thread_rng();
         light_block.signed_header.commit.height += 1;
         assert_eq!(
-            light_block.verify(&mut rng).unwrap_err(),
+            light_block
+                .verify(&mut DalekEd25519Verifier {})
+                .unwrap_err(),
             Error::SignedHeader(signed_header::Error::InvalidHeight {
                 commit: light_block.signed_header.commit.height,
                 header: light_block.signed_header.header.height
@@ -1122,10 +1154,11 @@ mod test {
     #[test]
     fn test_veirfy_commit_for_different_height() {
         let mut light_block: LightBlock = serde_json::from_str(LIGHT_BLOCK_JSON).unwrap();
-        let mut rng = thread_rng();
         light_block.signed_header.commit.height += 1;
         assert_eq!(
-            light_block.verify(&mut rng).unwrap_err(),
+            light_block
+                .verify(&mut DalekEd25519Verifier {})
+                .unwrap_err(),
             Error::SignedHeader(signed_header::Error::InvalidHeight {
                 commit: light_block.signed_header.commit.height,
                 header: light_block.signed_header.header.height
@@ -1136,10 +1169,11 @@ mod test {
     #[test]
     fn test_veirfy_invalid_validators() {
         let mut light_block: LightBlock = serde_json::from_str(LIGHT_BLOCK_JSON).unwrap();
-        let mut rng = thread_rng();
         light_block.validators.0.pop();
         assert_eq!(
-            light_block.verify(&mut rng).unwrap_err(),
+            light_block
+                .verify(&mut DalekEd25519Verifier {})
+                .unwrap_err(),
             Error::InvalidValidatorsHash {
                 hash_of_validators: light_block.validators.hash(),
                 validators_hash_in_header: light_block.signed_header.header.validators_hash
@@ -1150,12 +1184,13 @@ mod test {
     #[test]
     fn test_veirfy_signature_for_different_header_hash() {
         let mut light_block: LightBlock = serde_json::from_str(LIGHT_BLOCK_JSON).unwrap();
-        let mut rng = thread_rng();
         // change app hash for change header hash
         light_block.signed_header.header.app_hash = vec![0, 1, 2];
         light_block.signed_header.commit.block_id.hash = light_block.signed_header.header.hash();
         assert_eq!(
-            light_block.verify(&mut rng).unwrap_err(),
+            light_block
+                .verify(&mut DalekEd25519Verifier {})
+                .unwrap_err(),
             Error::VerifyBatchFailed
         )
     }
@@ -1163,7 +1198,6 @@ mod test {
     #[test]
     fn test_veirfy_invalid_signature_commit_sig_as_nil() {
         let mut light_block: LightBlock = serde_json::from_str(LIGHT_BLOCK_JSON).unwrap();
-        let mut rng = thread_rng();
         // change app hash for change header hash
         let sig = match light_block.signed_header.commit.signatures.pop().unwrap() {
             Vote::Commit(vote) => Vote::Nil(NilVote {
@@ -1175,7 +1209,9 @@ mod test {
         };
         light_block.signed_header.commit.signatures.push(sig);
         assert_eq!(
-            light_block.verify(&mut rng).unwrap_err(),
+            light_block
+                .verify(&mut DalekEd25519Verifier {})
+                .unwrap_err(),
             Error::VerifyBatchFailed
         )
     }
@@ -1183,7 +1219,6 @@ mod test {
     #[test]
     fn test_veirfy_not_enough_voting_power() {
         let mut light_block: LightBlock = serde_json::from_str(LIGHT_BLOCK_JSON).unwrap();
-        let mut rng = thread_rng();
         // total voting power = 91044884
         // make firls 20 signatures absent
         // validator power = 38054128
@@ -1191,7 +1226,9 @@ mod test {
             light_block.signed_header.commit.signatures[i] = Vote::Absent;
         }
         assert_eq!(
-            light_block.verify(&mut rng).unwrap_err(),
+            light_block
+                .verify(&mut DalekEd25519Verifier {})
+                .unwrap_err(),
             Error::NotEnoughVotingPowerSigned
         )
     }
@@ -1199,10 +1236,11 @@ mod test {
     #[test]
     fn test_veirfy_empty_commit() {
         let mut light_block: LightBlock = serde_json::from_str(LIGHT_BLOCK_JSON).unwrap();
-        let mut rng = thread_rng();
         light_block.signed_header.commit.signatures = Vec::default();
         assert_eq!(
-            light_block.verify(&mut rng).unwrap_err(),
+            light_block
+                .verify(&mut DalekEd25519Verifier {})
+                .unwrap_err(),
             Error::NotEnoughVotingPowerSigned
         )
     }

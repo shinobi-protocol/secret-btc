@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import BigNumber from 'bignumber.js';
-import { Account, SigningCosmWasmClient } from 'secretjs';
+import { Account, SecretNetworkClient } from 'secretjs';
 import {
     ContractClient,
     ExecuteResult as GenericExecuteResult,
@@ -22,11 +22,11 @@ class TokenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
 
     constructor(
         contractAddress: string,
-        signingCosmWasmClient: SigningCosmWasmClient,
+        secretNetworkClient: SecretNetworkClient,
         logger: Logger,
         viewingKey?: string
     ) {
-        super(contractAddress, signingCosmWasmClient, logger);
+        super(contractAddress, secretNetworkClient, logger);
         this.viewingKey = viewingKey;
     }
 
@@ -87,7 +87,7 @@ class TokenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         }
         const answer = await this.query({
             balance: {
-                address: this.signingCosmWasmClient.senderAddress,
+                address: this.secretNetworkClient.address,
                 key: viewingKey,
             },
         });
@@ -105,7 +105,7 @@ class TokenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         }
         const answer = await this.query({
             allowance: {
-                owner: this.signingCosmWasmClient.senderAddress,
+                owner: this.secretNetworkClient.address,
                 spender: spender,
                 key: viewingKey,
             },

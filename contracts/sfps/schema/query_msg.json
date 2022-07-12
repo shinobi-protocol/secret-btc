@@ -84,6 +84,32 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "required": [
+        "verify_subsequent_light_blocks"
+      ],
+      "properties": {
+        "verify_subsequent_light_blocks": {
+          "type": "object",
+          "required": [
+            "current_highest_header",
+            "light_blocks"
+          ],
+          "properties": {
+            "current_highest_header": {
+              "$ref": "#/definitions/Header"
+            },
+            "light_blocks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/LightBlock"
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {
@@ -110,6 +136,68 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "Commit": {
+      "type": "object",
+      "required": [
+        "block_id",
+        "height",
+        "round",
+        "signatures"
+      ],
+      "properties": {
+        "block_id": {
+          "description": "Block ID",
+          "allOf": [
+            {
+              "$ref": "#/definitions/BlockId"
+            }
+          ]
+        },
+        "height": {
+          "description": "Block height",
+          "type": "string"
+        },
+        "round": {
+          "description": "Round",
+          "type": "integer",
+          "format": "int32"
+        },
+        "signatures": {
+          "description": "Votes",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CommitSig"
+          }
+        }
+      }
+    },
+    "CommitSig": {
+      "type": "object",
+      "required": [
+        "block_id_flag",
+        "timestamp",
+        "validator_address"
+      ],
+      "properties": {
+        "block_id_flag": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "signature": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "validator_address": {
+          "type": "string"
         }
       }
     },
@@ -200,6 +288,21 @@
         }
       }
     },
+    "LightBlock": {
+      "type": "object",
+      "required": [
+        "signed_header",
+        "validators"
+      ],
+      "properties": {
+        "signed_header": {
+          "$ref": "#/definitions/SignedHeader"
+        },
+        "validators": {
+          "$ref": "#/definitions/Validators"
+        }
+      }
+    },
     "MerkleProof": {
       "type": "object",
       "required": [
@@ -248,6 +351,43 @@
         }
       }
     },
+    "PublicKey": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "value"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "tendermint/PubKeyEd25519"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "SignedHeader": {
+      "type": "object",
+      "required": [
+        "commit",
+        "header"
+      ],
+      "properties": {
+        "commit": {
+          "$ref": "#/definitions/Commit"
+        },
+        "header": {
+          "$ref": "#/definitions/Header"
+        }
+      }
+    },
     "TxResult": {
       "type": "object",
       "required": [
@@ -293,6 +433,31 @@
         "tx_result": {
           "$ref": "#/definitions/TxResult"
         }
+      }
+    },
+    "ValidatorInfo": {
+      "type": "object",
+      "required": [
+        "address",
+        "pub_key",
+        "voting_power"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "pub_key": {
+          "$ref": "#/definitions/PublicKey"
+        },
+        "voting_power": {
+          "type": "string"
+        }
+      }
+    },
+    "Validators": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ValidatorInfo"
       }
     },
     "Version": {

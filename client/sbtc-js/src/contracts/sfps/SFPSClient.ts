@@ -6,31 +6,37 @@ import {
     ContractClient,
     ExecuteResult as GenericExecuteResult,
 } from '../ContractClient';
+import { CommittedHashes } from '../shuriken/types';
 import { MerkleProof } from './TendermintMerkleTree';
 import {
     SFPSHandleMsg,
     QueryMsg,
     QueryAnswer,
     LightBlock,
-    CurrentHighestHeaderObject,
-    HeaderElement,
+    CurrentHighestHeaderElement as Header,
 } from './types';
 
 type ExecuteResult<ANSWER> = GenericExecuteResult<SFPSHandleMsg, ANSWER>;
 class SFPSClient extends ContractClient<SFPSHandleMsg, QueryMsg, QueryAnswer> {
+    public async verifySubsequentLightBlocks(currentHightestHeader: Header, lightBlocks: LightBlock[]): Promise<CommittedHashes> {
+        let result = await this.query({
+            verify_subsequent_light_blocks: {
+                current_highest_header: currentHightestHeader,
+                light_blocks: lightBlocks,
+            }
+        });
+        return result.verify_subsequent_light_blocks!.committed_hashes
+    }
+
     // handle
-    public async addLightBlocks(
-        current_highest_header: CurrentHighestHeaderObject,
-        light_blocks: LightBlock[],
-        entropy: Buffer,
+    public async appendSubsequentHashes(
+        committedHashes: CommittedHashes,
         gasLimit?: number
     ): Promise<ExecuteResult<void>> {
         return await this.execute(
             {
-                add_light_blocks: {
-                    current_highest_header,
-                    light_blocks,
-                    entropy: entropy.toString('base64'),
+                append_subsequent_hashes: {
+                    committed_hashes: committedHashes
                 },
             },
             gasLimit || 2800000,
@@ -39,7 +45,7 @@ class SFPSClient extends ContractClient<SFPSHandleMsg, QueryMsg, QueryAnswer> {
     }
 
     public async verityTxResultProof(
-        headers: HeaderElement[],
+        headers: Header[],
         encryption_key: string,
         merkle_proof: MerkleProof,
         tx_result: TxResult,

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub use sfps_lib;
 pub use sfps_lib::light_block::header::Header;
 pub use sfps_lib::light_block::LightBlock;
+pub use sfps_lib::subsequent_hashes::CommittedHashes;
 pub use sfps_lib::tx_result_proof::TxResultProof;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -24,6 +25,7 @@ pub enum QueryAnswer {
     HashListLength { length: u64 },
     HashByIndex { hash: Binary },
     VerifyTxResultProof { decrypted_data: Binary },
+    VerifySubsequentLightBlocks { committed_hashes: CommittedHashes },
 }
 
 #[derive(Serialize, Deserialize, Clone, JsonSchema, Debug, PartialEq)]
@@ -39,6 +41,10 @@ pub enum QueryMsg {
         tx_result_proof: TxResultProof,
         header_hash_index: u64,
         encryption_key: Binary,
+    },
+    VerifySubsequentLightBlocks {
+        current_highest_header: Header,
+        light_blocks: Vec<LightBlock>,
     },
 }
 
@@ -70,11 +76,7 @@ pub fn verify_tx_result_proof<Q: Querier, H: DeserializeOwned>(
 // Workaround for exports schemas for duplicated name types on different modules.
 #[schemars(rename = "SFPSHandleMsg")]
 pub enum HandleMsg {
-    AddLightBlocks {
-        current_highest_header: Header,
-        light_blocks: Vec<LightBlock>,
-        entropy: Binary,
-    },
+    AppendSubsequentHashes { committed_hashes: CommittedHashes },
 }
 
 impl HandleCallback for HandleMsg {

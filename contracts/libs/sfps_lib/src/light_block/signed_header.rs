@@ -14,7 +14,7 @@ pub enum Error {
     InvalidBlockIdFlag(u64),
     NoSignature,
     Base64(base64::DecodeError),
-    Signature(String),
+    DecodeSignature(),
 }
 
 impl std::fmt::Display for Error {
@@ -34,16 +34,11 @@ impl std::fmt::Display for Error {
             }
             Error::NoSignature => f.write_str("no signature"),
             Error::Base64(e) => write!(f, "base64 error: {}", e),
-            Error::Signature(string) => write!(f, "signature error: {}", string),
+            Error::DecodeSignature() => write!(f, "failed to decode signature error"),
         }
     }
 }
 
-impl From<ed25519_dalek::ed25519::signature::Error> for Error {
-    fn from(e: ed25519_dalek::ed25519::signature::Error) -> Self {
-        Self::Signature(e.to_string())
-    }
-}
 impl From<base64::DecodeError> for Error {
     fn from(e: base64::DecodeError) -> Self {
         Self::Base64(e)

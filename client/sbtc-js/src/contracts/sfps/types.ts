@@ -110,6 +110,7 @@ export interface QueryAnswer {
     hash_list_length?: HashListLength;
     hash_by_index?: QueryAnswerHashByIndex;
     verify_tx_result_proof?: QueryAnswerVerifyTxResultProof;
+    verify_subsequent_light_blocks?: QueryAnswerVerifySubsequentLightBlocks;
 }
 
 export interface CurrentHighestHeaderHash {
@@ -128,6 +129,20 @@ export interface MaxInterval {
     max_interval: number;
 }
 
+export interface QueryAnswerVerifySubsequentLightBlocks {
+    committed_hashes: VerifySubsequentLightBlocksCommittedHashes;
+}
+
+export interface VerifySubsequentLightBlocksCommittedHashes {
+    commit: number[];
+    hashes: PurpleHashes;
+}
+
+export interface PurpleHashes {
+    first_hash: number[];
+    following_hashes: Array<number[]>;
+}
+
 export interface QueryAnswerVerifyTxResultProof {
     decrypted_data: string;
 }
@@ -138,137 +153,19 @@ export interface QueryMsg {
     hash_list_length?: { [key: string]: any };
     hash_by_index?: QueryMsgHashByIndex;
     verify_tx_result_proof?: QueryMsgVerifyTxResultProof;
+    verify_subsequent_light_blocks?: QueryMsgVerifySubsequentLightBlocks;
 }
 
 export interface QueryMsgHashByIndex {
     index: number;
 }
 
-export interface QueryMsgVerifyTxResultProof {
-    encryption_key: string;
-    header_hash_index: number;
-    tx_result_proof: TxResultProof;
-}
-
-export interface TxResultProof {
-    headers: HeaderElement[];
-    merkle_proof: MerkleProof;
-    tx_result: TxResult;
-}
-
-export interface HeaderElement {
-    /**
-     * State after txs from the previous block
-     */
-    app_hash: string;
-    /**
-     * Chain ID
-     */
-    chain_id: string;
-    /**
-     * Consensus params for the current block
-     */
-    consensus_hash: string;
-    /**
-     * Merkle root of transaction hashes
-     */
-    data_hash: string;
-    /**
-     * Hash of evidence included in the block
-     */
-    evidence_hash: string;
-    /**
-     * Current block height
-     */
-    height: string;
-    /**
-     * Previous block info
-     */
-    last_block_id: PurpleBlockID;
-    /**
-     * Commit from validators from the last block
-     */
-    last_commit_hash: string;
-    /**
-     * Root hash of all results from the txs from the previous block
-     */
-    last_results_hash: string;
-    /**
-     * Validators for the next block
-     */
-    next_validators_hash: string;
-    /**
-     * Original proposer of the block
-     */
-    proposer_address: string;
-    /**
-     * Current timestamp
-     */
-    time: string;
-    /**
-     * Validators for the current block
-     */
-    validators_hash: string;
-    /**
-     * Header version
-     */
-    version?: null | PurpleVersion;
-}
-
-/**
- * Previous block info
- *
- * BlockID
- */
-export interface PurpleBlockID {
-    hash: string;
-    parts?: null | FluffyPartSetHeader;
-}
-
-/**
- * Block parts header
- */
-export interface FluffyPartSetHeader {
-    hash: string;
-    total: number;
-}
-
-export interface PurpleVersion {
-    /**
-     * App version
-     */
-    app?: string;
-    /**
-     * Block version
-     */
-    block: string;
-}
-
-export interface MerkleProof {
-    aunts: string[];
-    index: number;
-    leaf_hash: string;
-    total: number;
-}
-
-export interface TxResult {
-    code: number;
-    data: string;
-    gas_used: string;
-    gas_wanted: string;
-}
-
-export interface SFPSHandleMsg {
-    add_light_blocks: AddLightBlocks;
-}
-
-export interface AddLightBlocks {
-    current_highest_header: CurrentHighestHeaderObject;
-    entropy: string;
+export interface QueryMsgVerifySubsequentLightBlocks {
+    current_highest_header: CurrentHighestHeaderElement;
     light_blocks: LightBlock[];
 }
 
-export interface CurrentHighestHeaderObject {
+export interface CurrentHighestHeaderElement {
     /**
      * State after txs from the previous block
      */
@@ -365,7 +262,7 @@ export interface LightBlock {
 
 export interface SignedHeader {
     commit: Commit;
-    header: CurrentHighestHeaderObject;
+    header: CurrentHighestHeaderElement;
 }
 
 export interface Commit {
@@ -407,6 +304,50 @@ export interface PublicKey {
 
 export enum Type {
     TendermintPubKeyEd25519 = 'tendermint/PubKeyEd25519',
+}
+
+export interface QueryMsgVerifyTxResultProof {
+    encryption_key: string;
+    header_hash_index: number;
+    tx_result_proof: TxResultProof;
+}
+
+export interface TxResultProof {
+    headers: CurrentHighestHeaderElement[];
+    merkle_proof: MerkleProof;
+    tx_result: TxResult;
+}
+
+export interface MerkleProof {
+    aunts: string[];
+    index: number;
+    leaf_hash: string;
+    total: number;
+}
+
+export interface TxResult {
+    code: number;
+    data: string;
+    gas_used: string;
+    gas_wanted: string;
+}
+
+export interface SFPSHandleMsg {
+    append_subsequent_hashes: AppendSubsequentHashes;
+}
+
+export interface AppendSubsequentHashes {
+    committed_hashes: AppendSubsequentHashesCommittedHashes;
+}
+
+export interface AppendSubsequentHashesCommittedHashes {
+    commit: number[];
+    hashes: FluffyHashes;
+}
+
+export interface FluffyHashes {
+    first_hash: number[];
+    following_hashes: Array<number[]>;
 }
 
 // Converts JSON strings to/from your types
@@ -692,6 +633,11 @@ const typeMap: any = {
                 js: 'verify_tx_result_proof',
                 typ: u(undefined, r('QueryAnswerVerifyTxResultProof')),
             },
+            {
+                json: 'verify_subsequent_light_blocks',
+                js: 'verify_subsequent_light_blocks',
+                typ: u(undefined, r('QueryAnswerVerifySubsequentLightBlocks')),
+            },
         ],
         'any'
     ),
@@ -700,6 +646,30 @@ const typeMap: any = {
     HashListLength: o([{ json: 'length', js: 'length', typ: 0 }], 'any'),
     MaxInterval: o(
         [{ json: 'max_interval', js: 'max_interval', typ: 0 }],
+        'any'
+    ),
+    QueryAnswerVerifySubsequentLightBlocks: o(
+        [
+            {
+                json: 'committed_hashes',
+                js: 'committed_hashes',
+                typ: r('VerifySubsequentLightBlocksCommittedHashes'),
+            },
+        ],
+        'any'
+    ),
+    VerifySubsequentLightBlocksCommittedHashes: o(
+        [
+            { json: 'commit', js: 'commit', typ: a(0) },
+            { json: 'hashes', js: 'hashes', typ: r('PurpleHashes') },
+        ],
+        'any'
+    ),
+    PurpleHashes: o(
+        [
+            { json: 'first_hash', js: 'first_hash', typ: a(0) },
+            { json: 'following_hashes', js: 'following_hashes', typ: a(a(0)) },
+        ],
         'any'
     ),
     QueryAnswerVerifyTxResultProof: o(
@@ -733,122 +703,22 @@ const typeMap: any = {
                 js: 'verify_tx_result_proof',
                 typ: u(undefined, r('QueryMsgVerifyTxResultProof')),
             },
+            {
+                json: 'verify_subsequent_light_blocks',
+                js: 'verify_subsequent_light_blocks',
+                typ: u(undefined, r('QueryMsgVerifySubsequentLightBlocks')),
+            },
         ],
         'any'
     ),
     QueryMsgHashByIndex: o([{ json: 'index', js: 'index', typ: 0 }], 'any'),
-    QueryMsgVerifyTxResultProof: o(
-        [
-            { json: 'encryption_key', js: 'encryption_key', typ: '' },
-            { json: 'header_hash_index', js: 'header_hash_index', typ: 0 },
-            {
-                json: 'tx_result_proof',
-                js: 'tx_result_proof',
-                typ: r('TxResultProof'),
-            },
-        ],
-        'any'
-    ),
-    TxResultProof: o(
-        [
-            { json: 'headers', js: 'headers', typ: a(r('HeaderElement')) },
-            { json: 'merkle_proof', js: 'merkle_proof', typ: r('MerkleProof') },
-            { json: 'tx_result', js: 'tx_result', typ: r('TxResult') },
-        ],
-        'any'
-    ),
-    HeaderElement: o(
-        [
-            { json: 'app_hash', js: 'app_hash', typ: '' },
-            { json: 'chain_id', js: 'chain_id', typ: '' },
-            { json: 'consensus_hash', js: 'consensus_hash', typ: '' },
-            { json: 'data_hash', js: 'data_hash', typ: '' },
-            { json: 'evidence_hash', js: 'evidence_hash', typ: '' },
-            { json: 'height', js: 'height', typ: '' },
-            {
-                json: 'last_block_id',
-                js: 'last_block_id',
-                typ: r('PurpleBlockID'),
-            },
-            { json: 'last_commit_hash', js: 'last_commit_hash', typ: '' },
-            { json: 'last_results_hash', js: 'last_results_hash', typ: '' },
-            {
-                json: 'next_validators_hash',
-                js: 'next_validators_hash',
-                typ: '',
-            },
-            { json: 'proposer_address', js: 'proposer_address', typ: '' },
-            { json: 'time', js: 'time', typ: '' },
-            { json: 'validators_hash', js: 'validators_hash', typ: '' },
-            {
-                json: 'version',
-                js: 'version',
-                typ: u(undefined, u(null, r('PurpleVersion'))),
-            },
-        ],
-        'any'
-    ),
-    PurpleBlockID: o(
-        [
-            { json: 'hash', js: 'hash', typ: '' },
-            {
-                json: 'parts',
-                js: 'parts',
-                typ: u(undefined, u(null, r('FluffyPartSetHeader'))),
-            },
-        ],
-        'any'
-    ),
-    FluffyPartSetHeader: o(
-        [
-            { json: 'hash', js: 'hash', typ: '' },
-            { json: 'total', js: 'total', typ: 0 },
-        ],
-        'any'
-    ),
-    PurpleVersion: o(
-        [
-            { json: 'app', js: 'app', typ: u(undefined, '') },
-            { json: 'block', js: 'block', typ: '' },
-        ],
-        'any'
-    ),
-    MerkleProof: o(
-        [
-            { json: 'aunts', js: 'aunts', typ: a('') },
-            { json: 'index', js: 'index', typ: 0 },
-            { json: 'leaf_hash', js: 'leaf_hash', typ: '' },
-            { json: 'total', js: 'total', typ: 0 },
-        ],
-        'any'
-    ),
-    TxResult: o(
-        [
-            { json: 'code', js: 'code', typ: 0 },
-            { json: 'data', js: 'data', typ: '' },
-            { json: 'gas_used', js: 'gas_used', typ: '' },
-            { json: 'gas_wanted', js: 'gas_wanted', typ: '' },
-        ],
-        'any'
-    ),
-    SFPSHandleMsg: o(
-        [
-            {
-                json: 'add_light_blocks',
-                js: 'add_light_blocks',
-                typ: r('AddLightBlocks'),
-            },
-        ],
-        'any'
-    ),
-    AddLightBlocks: o(
+    QueryMsgVerifySubsequentLightBlocks: o(
         [
             {
                 json: 'current_highest_header',
                 js: 'current_highest_header',
-                typ: r('CurrentHighestHeaderObject'),
+                typ: r('CurrentHighestHeaderElement'),
             },
-            { json: 'entropy', js: 'entropy', typ: '' },
             {
                 json: 'light_blocks',
                 js: 'light_blocks',
@@ -857,7 +727,7 @@ const typeMap: any = {
         ],
         'any'
     ),
-    CurrentHighestHeaderObject: o(
+    CurrentHighestHeaderElement: o(
         [
             { json: 'app_hash', js: 'app_hash', typ: '' },
             { json: 'chain_id', js: 'chain_id', typ: '' },
@@ -934,7 +804,7 @@ const typeMap: any = {
             {
                 json: 'header',
                 js: 'header',
-                typ: r('CurrentHighestHeaderObject'),
+                typ: r('CurrentHighestHeaderElement'),
             },
         ],
         'any'
@@ -973,6 +843,82 @@ const typeMap: any = {
         [
             { json: 'type', js: 'type', typ: r('Type') },
             { json: 'value', js: 'value', typ: '' },
+        ],
+        'any'
+    ),
+    QueryMsgVerifyTxResultProof: o(
+        [
+            { json: 'encryption_key', js: 'encryption_key', typ: '' },
+            { json: 'header_hash_index', js: 'header_hash_index', typ: 0 },
+            {
+                json: 'tx_result_proof',
+                js: 'tx_result_proof',
+                typ: r('TxResultProof'),
+            },
+        ],
+        'any'
+    ),
+    TxResultProof: o(
+        [
+            {
+                json: 'headers',
+                js: 'headers',
+                typ: a(r('CurrentHighestHeaderElement')),
+            },
+            { json: 'merkle_proof', js: 'merkle_proof', typ: r('MerkleProof') },
+            { json: 'tx_result', js: 'tx_result', typ: r('TxResult') },
+        ],
+        'any'
+    ),
+    MerkleProof: o(
+        [
+            { json: 'aunts', js: 'aunts', typ: a('') },
+            { json: 'index', js: 'index', typ: 0 },
+            { json: 'leaf_hash', js: 'leaf_hash', typ: '' },
+            { json: 'total', js: 'total', typ: 0 },
+        ],
+        'any'
+    ),
+    TxResult: o(
+        [
+            { json: 'code', js: 'code', typ: 0 },
+            { json: 'data', js: 'data', typ: '' },
+            { json: 'gas_used', js: 'gas_used', typ: '' },
+            { json: 'gas_wanted', js: 'gas_wanted', typ: '' },
+        ],
+        'any'
+    ),
+    SFPSHandleMsg: o(
+        [
+            {
+                json: 'append_subsequent_hashes',
+                js: 'append_subsequent_hashes',
+                typ: r('AppendSubsequentHashes'),
+            },
+        ],
+        'any'
+    ),
+    AppendSubsequentHashes: o(
+        [
+            {
+                json: 'committed_hashes',
+                js: 'committed_hashes',
+                typ: r('AppendSubsequentHashesCommittedHashes'),
+            },
+        ],
+        'any'
+    ),
+    AppendSubsequentHashesCommittedHashes: o(
+        [
+            { json: 'commit', js: 'commit', typ: a(0) },
+            { json: 'hashes', js: 'hashes', typ: r('FluffyHashes') },
+        ],
+        'any'
+    ),
+    FluffyHashes: o(
+        [
+            { json: 'first_hash', js: 'first_hash', typ: a(0) },
+            { json: 'following_hashes', js: 'following_hashes', typ: a(a(0)) },
         ],
         'any'
     ),

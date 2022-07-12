@@ -24,17 +24,26 @@
     {
       "type": "object",
       "required": [
-        "bitcoin_s_p_v_proxy"
+        "bitcoin_s_p_v_add_headers"
       ],
       "properties": {
-        "bitcoin_s_p_v_proxy": {
+        "bitcoin_s_p_v_add_headers": {
           "type": "object",
           "required": [
-            "msg"
+            "headers",
+            "tip_height"
           ],
           "properties": {
-            "msg": {
-              "$ref": "#/definitions/BitcoinSPVHandleMsg"
+            "headers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Binary"
+              }
+            },
+            "tip_height": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
             }
           }
         }
@@ -43,17 +52,21 @@
     {
       "type": "object",
       "required": [
-        "s_f_p_s_proxy"
+        "s_f_p_s_proxy_append_subsequent_hashes"
       ],
       "properties": {
-        "s_f_p_s_proxy": {
+        "s_f_p_s_proxy_append_subsequent_hashes": {
           "type": "object",
           "required": [
-            "msg"
+            "committed_hashes",
+            "last_header"
           ],
           "properties": {
-            "msg": {
-              "$ref": "#/definitions/SFPSHandleMsg"
+            "committed_hashes": {
+              "$ref": "#/definitions/CommittedHashes"
+            },
+            "last_header": {
+              "$ref": "#/definitions/Header"
             }
           }
         }
@@ -64,38 +77,6 @@
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
-    },
-    "BitcoinSPVHandleMsg": {
-      "anyOf": [
-        {
-          "type": "object",
-          "required": [
-            "add_headers"
-          ],
-          "properties": {
-            "add_headers": {
-              "type": "object",
-              "required": [
-                "headers",
-                "tip_height"
-              ],
-              "properties": {
-                "headers": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/definitions/Binary"
-                  }
-                },
-                "tip_height": {
-                  "type": "integer",
-                  "format": "uint32",
-                  "minimum": 0.0
-                }
-              }
-            }
-          }
-        }
-      ]
     },
     "BlockId": {
       "description": "BlockID",
@@ -120,64 +101,25 @@
       }
     },
     "Commit": {
-      "type": "object",
-      "required": [
-        "block_id",
-        "height",
-        "round",
-        "signatures"
-      ],
-      "properties": {
-        "block_id": {
-          "description": "Block ID",
-          "allOf": [
-            {
-              "$ref": "#/definitions/BlockId"
-            }
-          ]
-        },
-        "height": {
-          "description": "Block height",
-          "type": "string"
-        },
-        "round": {
-          "description": "Round",
-          "type": "integer",
-          "format": "int32"
-        },
-        "signatures": {
-          "description": "Votes",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/CommitSig"
-          }
-        }
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint8",
+        "minimum": 0.0
       }
     },
-    "CommitSig": {
+    "CommittedHashes": {
       "type": "object",
       "required": [
-        "block_id_flag",
-        "timestamp",
-        "validator_address"
+        "commit",
+        "hashes"
       ],
       "properties": {
-        "block_id_flag": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
+        "commit": {
+          "$ref": "#/definitions/Commit"
         },
-        "signature": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "timestamp": {
-          "type": "string"
-        },
-        "validator_address": {
-          "type": "string"
+        "hashes": {
+          "$ref": "#/definitions/Hashes"
         }
       }
     },
@@ -193,6 +135,34 @@
         },
         "hash": {
           "type": "string"
+        }
+      }
+    },
+    "Hashes": {
+      "type": "object",
+      "required": [
+        "first_hash",
+        "following_hashes"
+      ],
+      "properties": {
+        "first_hash": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          }
+        },
+        "following_hashes": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0.0
+            }
+          }
         }
       }
     },
@@ -286,21 +256,6 @@
     "HumanAddr": {
       "type": "string"
     },
-    "LightBlock": {
-      "type": "object",
-      "required": [
-        "signed_header",
-        "validators"
-      ],
-      "properties": {
-        "signed_header": {
-          "$ref": "#/definitions/SignedHeader"
-        },
-        "validators": {
-          "$ref": "#/definitions/Validators"
-        }
-      }
-    },
     "PartSetHeader": {
       "description": "Block parts header",
       "type": "object",
@@ -317,102 +272,6 @@
           "format": "uint32",
           "minimum": 0.0
         }
-      }
-    },
-    "PublicKey": {
-      "anyOf": [
-        {
-          "type": "object",
-          "required": [
-            "type",
-            "value"
-          ],
-          "properties": {
-            "type": {
-              "type": "string",
-              "enum": [
-                "tendermint/PubKeyEd25519"
-              ]
-            },
-            "value": {
-              "type": "string"
-            }
-          }
-        }
-      ]
-    },
-    "SFPSHandleMsg": {
-      "anyOf": [
-        {
-          "type": "object",
-          "required": [
-            "add_light_blocks"
-          ],
-          "properties": {
-            "add_light_blocks": {
-              "type": "object",
-              "required": [
-                "current_highest_header",
-                "entropy",
-                "light_blocks"
-              ],
-              "properties": {
-                "current_highest_header": {
-                  "$ref": "#/definitions/Header"
-                },
-                "entropy": {
-                  "$ref": "#/definitions/Binary"
-                },
-                "light_blocks": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/definitions/LightBlock"
-                  }
-                }
-              }
-            }
-          }
-        }
-      ]
-    },
-    "SignedHeader": {
-      "type": "object",
-      "required": [
-        "commit",
-        "header"
-      ],
-      "properties": {
-        "commit": {
-          "$ref": "#/definitions/Commit"
-        },
-        "header": {
-          "$ref": "#/definitions/Header"
-        }
-      }
-    },
-    "ValidatorInfo": {
-      "type": "object",
-      "required": [
-        "address",
-        "pub_key",
-        "voting_power"
-      ],
-      "properties": {
-        "address": {
-          "type": "string"
-        },
-        "pub_key": {
-          "$ref": "#/definitions/PublicKey"
-        },
-        "voting_power": {
-          "type": "string"
-        }
-      }
-    },
-    "Validators": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/ValidatorInfo"
       }
     },
     "Version": {

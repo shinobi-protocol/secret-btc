@@ -30,10 +30,11 @@ rpath = false
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
+full_signatures_test = []
 
 [dependencies]
 aes-siv = "0.6.2"
-cosmwasm-std = {package = "secret-cosmwasm-std", version = "0.10.0"}
+cosmwasm-std = {package = "secret-cosmwasm-std", version = "0.10.1"}
 cosmwasm-storage = {package = "secret-cosmwasm-storage", version = "0.10.0"}
 schemars = "0.7"
 secret-toolkit = "0.2.0"

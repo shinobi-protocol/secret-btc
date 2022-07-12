@@ -1,91 +1,114 @@
 /* eslint-disable @typescript-eslint/ban-types */
 
-import { ContractDetails, SigningCosmWasmClient } from 'secretjs';
-import { Coin, StdFee } from 'secretjs/types/types';
+import { ContractInfo, SecretNetworkClient, Tx } from 'secretjs';
 import { Logger } from 'winston';
 
+export class ExecuteError<HANDLE_MSG> extends Error {
+    public tx: Tx;
+    public contractAddress: string;
+    public contractInfo: ContractInfo;
+    public msg: HANDLE_MSG;
+    public errorMsg: string;
+
+    constructor(tx: Tx, contractAddress: string, contractInfo: ContractInfo, msg: HANDLE_MSG, errorMsg: string) {
+        super(errorMsg);
+        this.tx = tx;
+        this.contractAddress = contractAddress;
+        this.contractInfo = contractInfo;
+        this.msg = msg;
+        this.errorMsg = errorMsg;
+    }
+}
+
 export interface ExecuteResult<HANDLE_MSG, ANSWER> {
-    contractDetails: ContractDetails;
+    tx: Tx,
+    contractAddress: string;
+    contractInfo: ContractInfo;
     msg: HANDLE_MSG;
-    transactionHash: string;
     answer: ANSWER;
 }
 
-interface TxResult {
-    transactionHash: string;
-    answerJson: string;
-}
-
 interface PaddingMsg {
-    padding?: null | string;
+    [x: string]: any;
+    p?: null | string;
 }
 
 const REQUEST_MSG_BLOCK_SIZE = 256;
 const DEFAULT_GAS_PRICE = 0.25;
 
 export abstract class ContractClient<
-    HANDLE_MSG extends Record<string, PaddingMsg | any>,
-    QUERY_MSG extends object,
-    QUERY_ANSWER
-> {
+    HANDLE_MSG extends PaddingMsg,
+    QUERY_MSG extends PaddingMsg,
+    QUERY_ANSWER extends object
+    > {
     public contractAddress: string;
-    public signingCosmWasmClient: SigningCosmWasmClient;
-    public contractDetails: Promise<ContractDetails>;
+    public contractInfo: Promise<ContractInfo>;
+    public codeHash: Promise<string>;
+    public secretNetworkClient: SecretNetworkClient;
     public gasPrice: number;
     protected logger: Logger;
 
     constructor(
         contractAddress: string,
-        signingCosmWasmClient: SigningCosmWasmClient,
+        secretNetworkClient: SecretNetworkClient,
         logger: Logger,
         gasPrice = DEFAULT_GAS_PRICE
     ) {
         this.contractAddress = contractAddress;
-        this.signingCosmWasmClient = signingCosmWasmClient;
-        this.contractDetails = this.signingCosmWasmClient.getContract(
-            this.contractAddress
-        );
+        this.secretNetworkClient = secretNetworkClient;
+        this.contractInfo = (async () => {
+            let contractInfoResponse = await secretNetworkClient.query.compute.contractInfo(contractAddress);
+            return contractInfoResponse.ContractInfo;
+        })();
+        this.codeHash =
+            secretNetworkClient.query.compute.contractCodeHash(contractAddress)
         this.gasPrice = gasPrice;
         this.logger = logger;
     }
 
     public senderAddress(): string {
-        return this.signingCosmWasmClient.senderAddress;
+        return this.secretNetworkClient.address;
     }
 
     protected async execute<ANSWER>(
-        handleMsg: HANDLE_MSG,
+        msg: HANDLE_MSG,
         gasLimit: number,
         parseAnswer: (answerJson: string) => ANSWER
     ): Promise<ExecuteResult<HANDLE_MSG, ANSWER>> {
-        const paddedMsg = this.padMsg(handleMsg);
-        const stdFee = this.stdFee(gasLimit);
+        const paddedMsg = this.padMsg(msg);
         this.logger.log({
             level: 'info',
             message:
                 'Execute Start: ' +
                 JSON.stringify(paddedMsg) +
-                '\nFee: ' +
-                JSON.stringify(stdFee),
+                '\nGasLimit: ' + gasLimit
         });
-        const result = await this.sendTx(
-            this.contractAddress,
-            paddedMsg,
-            '',
-            [],
-            stdFee
+        const result = await this.secretNetworkClient.tx.compute.executeContract(
+            {
+                sender: this.secretNetworkClient.address,
+                contractAddress: this.contractAddress,
+                codeHash: await this.codeHash,
+                msg,
+            }, {
+            gasLimit
+        }
         );
-        const executeResult = {
-            contractDetails: await this.contractDetails,
-            msg: handleMsg,
-            transactionHash: result.transactionHash,
-            answer: parseAnswer(result.answerJson),
-        };
+        if (result.code !== 0) {
+            console.log(result);
+            throw new ExecuteError(result, this.contractAddress, await this.contractInfo, msg, result.rawLog);
+        }
+        const answer = parseAnswer(new TextDecoder().decode(result.data[0] as Uint8Array));
         this.logger.log({
             level: 'info',
-            message: 'Execute Succeed: ' + JSON.stringify(executeResult),
+            message: `Execute Succeed\ntxhash: ${result.transactionHash}\ngasUsed/gasWanted: ${result.gasUsed}/${result.gasWanted}\nanswer:${JSON.stringify(answer)}`
         });
-        return executeResult;
+        return {
+            tx: result,
+            contractAddress: this.contractAddress,
+            contractInfo: await this.contractInfo,
+            msg,
+            answer,
+        };
     }
 
     protected async query(queryMsg: QUERY_MSG): Promise<QUERY_ANSWER> {
@@ -107,10 +130,13 @@ export abstract class ContractClient<
             try {
                 // Query
                 const result =
-                    (await this.signingCosmWasmClient.queryContractSmart(
-                        this.contractAddress,
-                        paddedMsg
-                    )) as QUERY_ANSWER;
+                    await this.secretNetworkClient.query.compute.queryContract<QUERY_MSG, QUERY_ANSWER>({
+                        contractAddress:
+                            this.contractAddress,
+                        codeHash: await this.codeHash,
+                        query: paddedMsg,
+                    }
+                    );
                 this.logger.log({
                     level: 'info',
                     message: 'Query Succeed: ' + JSON.stringify(result),
@@ -150,7 +176,7 @@ export abstract class ContractClient<
      * about AES-SIV S2V data, see (https://datatracker.ietf.org/doc/html/rfc5297#section-2.4)
      * The size of Msg in the ContractExecute Transaction is 144 + X.
      */
-    private padMsg(msg: object): object {
+    private padMsg<T extends HANDLE_MSG | QUERY_MSG>(msg: T): T {
         const minimumPaddingSize = 7; // ,"p":""
         const msgSize = this.msgSize(msg);
         const surplus = msgSize % REQUEST_MSG_BLOCK_SIZE;
@@ -166,112 +192,15 @@ export abstract class ContractClient<
                 p: ' '.repeat(missing - minimumPaddingSize),
             },
         };
-        return padded;
+        return padded as T;
     }
 
     /**
      * Returns byte length of msg in UTF-8 encoding.
      */
-    private msgSize(msg: object): number {
+    private msgSize<T extends HANDLE_MSG | QUERY_MSG>(msg: T): number {
         return JSON.stringify(msg).length;
     }
 
-    public stdFee(gasLimit: number): StdFee {
-        return {
-            amount: [
-                {
-                    amount: (
-                        Math.floor(gasLimit * this.gasPrice) + 1
-                    ).toString(),
-                    denom: 'uscrt',
-                },
-            ],
-            gas: gasLimit.toString(),
-        };
-    }
 
-    private async sendTx(
-        contractAddress: string,
-        handleMsg: object,
-        memo?: string,
-        transferAmount?: readonly Coin[],
-        fee?: StdFee,
-        contractCodeHash?: string
-    ): Promise<TxResult> {
-        const currentBlockHeight = (await this.signingCosmWasmClient.getBlock())
-            .header.height;
-        const currentSequence = (await this.signingCosmWasmClient.getAccount())!
-            .sequence;
-        try {
-            const result = await this.signingCosmWasmClient.execute(
-                contractAddress,
-                handleMsg,
-                memo,
-                transferAmount,
-                fee,
-                contractCodeHash
-            );
-            return {
-                transactionHash: result.transactionHash,
-                answerJson: new TextDecoder().decode(result.data as Uint8Array),
-            };
-        } catch (e) {
-            if (this.isTxTimeoutError(e)) {
-                this.logger.log({
-                    level: 'info',
-                    message: 'Waiting for tx to be confirmed...',
-                });
-                // Wait for Tx to be Included in a block
-                let retryCount = 0;
-                while (
-                    currentSequence ==
-                    (await this.signingCosmWasmClient.getAccount())!.sequence
-                ) {
-                    retryCount++;
-                    if (retryCount > 10) {
-                        throw Error('Tx seems to be losted. retry execution.');
-                    }
-                    await new Promise((resolve) =>
-                        setTimeout(resolve, 1000 * (retryCount ^ 2))
-                    );
-                }
-                // wait
-                await new Promise((resolve) => setTimeout(resolve, 4000))
-                // Query Tx Result
-                const query = `message.signer=${this.senderAddress()}&wasm.contract_address=${
-                    this.contractAddress
-                }&tx.minheight=${currentBlockHeight}`;
-                const txs = (
-                    await this.signingCosmWasmClient.restClient.txsQuery(query)
-                ).txs;
-
-                console.log('txs: ', txs)
-                const tx = txs[txs.length - 1];
-                this.logger.log({ level: 'info', message: 'Tx confirmed' });
-                if (tx.code) {
-                    throw new Error(
-                        `Error when posting tx ${tx.txhash}. Code: ${tx.code}; Raw log: ${tx.raw_log}`
-                    );
-                }
-                return {
-                    transactionHash: tx.txhash,
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                    // @ts-ignore
-                    answerJson: new TextDecoder().decode(tx.data),
-                };
-            } else {
-                throw e;
-            }
-        }
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private isTxTimeoutError(e: unknown): boolean {
-        return (
-            e instanceof Error &&
-            e.name == 'Error' &&
-            e.message ==
-                'Failed to decrypt the following error message: timed out waiting for tx to be included in a block (HTTP 500). Decryption error of the error message: timed out waiting for tx to be included in a block (HTTP 500)'
-        );
-    }
 }

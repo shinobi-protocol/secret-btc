@@ -14,64 +14,97 @@ describe('FeeReportRenderer', () => {
         it('renders markdown text', () => {
             const writer = new MockWriter();
             const renderer = new FeeReportRenderer(writer);
-            renderer.writeRow({
-                executeResult: {
-                    contractDetails: {
-                        address: 'contract address1',
-                        codeId: 0,
+            renderer.writeRow(
+                {
+                    tx: {
+                        height: 0,
+                        timestamp: 'timestamp1',
+                        transactionHash: 'transaction hash1',
+                        code: 0,
+                        rawLog: 'raw log1',
+                        events: [],
+                        data: [],
+                        tx: {
+                            body: {
+
+                                messages: [],
+                                memo: '',
+                                timeoutHeight: '',
+                                extensionOptions: [],
+                                nonCriticalExtensionOptions: []
+                            },
+                            authInfo: {
+                                signerInfos: [],
+                            },
+                            signatures: []
+                        },
+                        txBytes: Buffer.from([]),
+                        gasUsed: 100000,
+                        gasWanted: 0,
+                    },
+                    contractAddress: 'contract address1',
+                    contractInfo: {
+                        codeId: '',
                         creator: 'creator address1',
                         label: 'label1',
-                        initMsg: {},
                     },
                     msg: {
                         handle_msg: {},
                     },
-                    transactionHash: 'transaction hash1',
                     answer: {},
                 },
-                txFeeResult: {
-                    fee: {
-                        amount: [],
-                        gas: '200000',
+            );
+            renderer.writeRow(
+                {
+                    tx: {
+                        height: 0,
+                        timestamp: 'timestamp2',
+                        transactionHash: 'transaction hash2',
+                        code: 0,
+                        rawLog: 'raw log1',
+                        events: [],
+                        data: [],
+                        tx: {
+                            body: {
+
+                                messages: [],
+                                memo: '',
+                                timeoutHeight: '',
+                                extensionOptions: [],
+                                nonCriticalExtensionOptions: []
+                            },
+                            authInfo: {
+                                signerInfos: [],
+                            },
+                            signatures: []
+                        },
+                        txBytes: Buffer.from([]),
+                        gasUsed: 200000,
+                        gasWanted: 0,
                     },
-                    gasUsed: 100000,
-                },
-            });
-            renderer.writeRow({
-                executeResult: {
-                    contractDetails: {
-                        address: 'contract address2',
-                        codeId: 0,
+                    contractAddress: 'contract address2',
+                    contractInfo: {
+                        codeId: '',
                         creator: 'creator address2',
                         label: 'label2',
-                        initMsg: {},
                     },
                     msg: {
                         handle_msg: {
-                            body: 2000,
+                            body: 2000
                         },
                     },
-                    transactionHash: 'transaction hash',
                     answer: {},
                 },
-                txFeeResult: {
-                    fee: {
-                        amount: [],
-                        gas: '200000',
-                    },
-                    gasUsed: 200000,
-                },
-                metadata: 'metadata string',
-            });
+            );
             assert.equal(
                 writer.string,
                 [
                     '# Fee Report',
                     '',
-                    '| Contract | Function | Message Length | Gas Used | Fee On SCRT (gasPrice = 0.25) | metadata |',
-                    '| -------- | -------  | -------------: | -------: | ----------------------------: | -------- |',
-                    '| label1 | handle_msg | 2 | 100,000 | 0.025 |  |',
-                    '| label2 | handle_msg | 13 | 200,000 | 0.05 | metadata string |',
+                    '| Contract | Function | Message Length | Gas Used | Fee On SCRT (gasPrice = 0.25) |',
+                    '| -------- | -------  | -------------: | -------: | ----------------------------: |',
+                    '| label1 | handle_msg | 2 | 100,000 | 0.025 |',
+                    '| label2 | handle_msg | 13 | 200,000 | 0.05 |',
                 ].join('\n')
             );
         });
