@@ -36,13 +36,13 @@ bitcoinconsensus = ["bitcoin/bitcoinconsensus"]
 base64 = "0.12.3"
 bitcoin = {path = "../libs/pure-rust-bitcoin", features = ["use-serde"]}
 bitcoin_header_chain = {path = "../libs/bitcoin_header_chain"}
-cosmwasm-std = {package = "secret-cosmwasm-std", version = "0.10.0"}
+cosmwasm-std = {package = "secret-cosmwasm-std", version = "0.10.1"}
 cosmwasm-storage = {package = "secret-cosmwasm-storage", version = "0.10.0"}
 rand = {version = "0.7.3"}
 schemars = "0.7"
 secret-toolkit = "0.2.0"
 serde = {version = "1.0.103", default-features = false, features = ["derive"]}
-shared_types = {path = "../libs/shared_types", features = ["bitcoin_spv", "sfps", "finance_admin", "gateway"]}
+shared_types = {path = "../libs/shared_types", features = ["bitcoin_spv", "sfps", "gateway"]}
 subtle = {version = "2.2.3", default-features = false}
 
 [dev-dependencies]

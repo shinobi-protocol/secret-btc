@@ -3,8 +3,6 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "bitcoin_spv")]
 pub mod bitcoin_spv;
-#[cfg(feature = "finance_admin")]
-pub mod finance_admin;
 #[cfg(feature = "gateway")]
 pub mod gateway;
 #[cfg(feature = "log")]
@@ -17,8 +15,6 @@ pub mod prng;
 pub mod sfps;
 #[cfg(feature = "shuriken")]
 pub mod shuriken;
-#[cfg(feature = "treasury")]
-pub mod treasury;
 #[cfg(feature = "viewing_key")]
 pub mod viewing_key;
 

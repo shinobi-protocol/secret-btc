@@ -32,11 +32,16 @@
         "current_highest_header_hash": {
           "type": "object",
           "required": [
-            "hash"
+            "hash",
+            "height"
           ],
           "properties": {
             "hash": {
               "$ref": "#/definitions/Binary"
+            },
+            "height": {
+              "type": "integer",
+              "format": "int64"
             }
           }
         }
@@ -72,11 +77,16 @@
         "hash_by_index": {
           "type": "object",
           "required": [
-            "hash"
+            "hash",
+            "height"
           ],
           "properties": {
             "hash": {
               "$ref": "#/definitions/Binary"
+            },
+            "height": {
+              "type": "integer",
+              "format": "int64"
             }
           }
         }
@@ -85,10 +95,10 @@
     {
       "type": "object",
       "required": [
-        "verify_tx_result_proof"
+        "verify_response_deliver_tx_proof"
       ],
       "properties": {
-        "verify_tx_result_proof": {
+        "verify_response_deliver_tx_proof": {
           "type": "object",
           "required": [
             "decrypted_data"
@@ -167,13 +177,29 @@
         "following_hashes": {
           "type": "array",
           "items": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "$ref": "#/definitions/HeaderHashWithHeight"
           }
+        }
+      }
+    },
+    "HeaderHashWithHeight": {
+      "type": "object",
+      "required": [
+        "hash",
+        "height"
+      ],
+      "properties": {
+        "hash": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          }
+        },
+        "height": {
+          "type": "integer",
+          "format": "int64"
         }
       }
     }

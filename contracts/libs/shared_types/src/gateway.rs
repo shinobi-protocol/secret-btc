@@ -24,7 +24,6 @@ pub struct Config {
     pub bitcoin_spv: ContractReference,
     pub sfps: ContractReference,
     pub sbtc: ContractReference,
-    pub finance_admin: ContractReference,
     pub log: ContractReference,
 
     /// [Owner]
@@ -37,7 +36,6 @@ pub struct CanonicalConfig {
     pub bitcoin_spv: CanonicalContractReference,
     pub sfps: CanonicalContractReference,
     pub sbtc: CanonicalContractReference,
-    pub finance_admin: CanonicalContractReference,
     pub log: CanonicalContractReference,
     pub owner: CanonicalAddr,
 }
@@ -51,7 +49,6 @@ impl Canonicalize for Config {
             bitcoin_spv: self.bitcoin_spv.into_canonical(api)?,
             sfps: self.sfps.into_canonical(api)?,
             sbtc: self.sbtc.into_canonical(api)?,
-            finance_admin: self.finance_admin.into_canonical(api)?,
             log: self.log.into_canonical(api)?,
             owner: self.owner.into_canonical(api)?,
         })
@@ -63,14 +60,13 @@ impl Canonicalize for Config {
             bitcoin_spv: ContractReference::from_canonical(canonical.bitcoin_spv, api)?,
             sfps: ContractReference::from_canonical(canonical.sfps, api)?,
             sbtc: ContractReference::from_canonical(canonical.sbtc, api)?,
-            finance_admin: ContractReference::from_canonical(canonical.finance_admin, api)?,
             log: ContractReference::from_canonical(canonical.log, api)?,
             owner: HumanAddr::from_canonical(canonical.owner, api)?,
         })
     }
 }
 
-#[derive(Serialize, Deserialize, JsonSchema, Clone)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     CreateViewingKey {
@@ -100,14 +96,14 @@ pub enum HandleMsg {
         amount: u64,
     },
     ClaimReleasedBtc {
-        tx_result_proof: sfps::TxResultProof,
-        header_hash_index: u64,
+        merkle_proof: sfps::MerkleProof,
+        #[schemars(with = "Vec<String>")]
+        #[serde(with = "sfps::serde_proto_message_array")]
+        headers: Vec<sfps::Header>,
+        block_hash_index: u64,
         encryption_key: Binary,
         recipient_address: String,
         fee_per_vb: u64,
-    },
-    ChangeFinanceAdmin {
-        new_finance_admin: ContractReference,
     },
     ChangeOwner {
         new_owner: HumanAddr,
@@ -188,4 +184,37 @@ pub struct SuspensionSwitch {
     pub release_incorrect_amount_btc: bool,
     pub request_release_btc: bool,
     pub claim_release_btc: bool,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn test_deserialize_claim_release_btc_msg() {
+        let json = r#"
+        {
+            "claim_released_btc": {
+                "recipient_address": "bcrt1qqww9y2xewqr679k6fectv74lkjq64498f4xvml",
+                "fee_per_vb": 24,
+                "merkle_proof": {
+                "total": 1,
+                "index": 0,
+                "leaf": "129a030a97030a2a2f7365637265742e636f6d707574652e763162657461312e4d736745786563757465436f6e747261637412e8024773fc1286787623ed4bd8346698e047b12e803a7281abbc1433eaf9bf4728008da38415eb8160316b63d28979a1241a537ec1c16da7e25704eadda4a45a68637e3ddee8b1a868e4586c9e7bd2a663e235c937a233024fd9a4429b0568fe6db94b10657e6c3a0c8a5fd4e0ca50f773a9e6686db4052ecc34efea12a8ad7e267b9cbddb418d658a9e5b5f0339c6107784c2d46a5e1918220759769da20873465c8db820dfc30069b6a935196b9106b2816c8930c3e19e74092559a76f281b04fcf96ab7065cf75375f666dec028e38d7cdacaa55c61293f6668fa47b02b3705a920621074d900d72158c7118aaf1586c21615bdec4e27c9c6bd362c604e9648a0dcb6bcd568016ee01f6ab67fd60e2854d65ceedf341d599c18fa927bc48344a946c25af9dfaf27aa9e33ddc49b386039f49930f87bece0b53524d380f46336e37843df732cb679176b3017768f22c6292b05826f81788febeb5cdc9257e639851d06f54dcf62556f28c0cf2430f0bc08",
+                "aunts": []
+                },
+                "headers": [
+                "CgIICxILc2VjcmV0ZGV2LTEYqgMiCwjo0NCWBhDb39MCKkgKILCxAcHRYXi1uJvUfkdO1O43IiHbxLuiorroorEOMnnVEiQIARIgpdAWN+UnhdPDrFtBPL4ZHN2bSJBBVubw1uO+Ohz+zesyIATm5CfG7D68p6lhJZQkQtJYh/1efvkKhKggI1z8/5jGOiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VUIghsxqKC81tk1qrG7YbMpAoAwEIZt92Zcc2pq+QedHjoZKIIbMaigvNbZNaqxu2GzKQKAMBCGbfdmXHNqavkHnR46GUiAEgJG8fdwoP3e/v5HXPETaWMPfipy8hnQF2Lfz2q2iL1ogapYfobSfmOe3+soNokyd0PVtP2qaoboC9W30wiJNNfViIIZuyU/hhjjiPrFY8w97TZneMypeGqFL2XeH2nFvAnl1aiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VXIULxRYhmxZuyGFvvpTEeSR5j7g8/c=",
+                "CgIICxILc2VjcmV0ZGV2LTEYqwMiCwjt0NCWBhC5zbgFKkgKILqfctc21Rurzq/J78ztltatljfG0eFWyFMRC69IbEDrEiQIARIg5ULX4ygObOyzd9edUaqTxtTbeuWmwggd+rzESrnhZDsyIKdW0Gpldf8DMaFYSsgfg3PZVpcdVJaeNleKTpkdQUpwOiBcVvkSKDa/sCRlMT2cjeofssNANZC4f9fvUdoyDlMFx0IghsxqKC81tk1qrG7YbMpAoAwEIZt92Zcc2pq+QedHjoZKIIbMaigvNbZNaqxu2GzKQKAMBCGbfdmXHNqavkHnR46GUiAEgJG8fdwoP3e/v5HXPETaWMPfipy8hnQF2Lfz2q2iL1ogyDYtUBk/eEsF62t0SETqKO5m5+t5WcoMxT2e0TV8mnJiIOOwxEKY/BwUmvv0yJlvuSQnrkHkZJuTTKSVmRt4UrhVaiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VXIULxRYhmxZuyGFvvpTEeSR5j7g8/c=",
+                "CgIICxILc2VjcmV0ZGV2LTEYrAMiCwjy0NCWBhCot7oIKkgKIGYEHVGkjSTmaOYjKlp381lHt7XyOU/wtfVPUdLKDDbnEiQIARIgt7qNLrHMECvrni699+xTAK9L2NxI1YmnZbaKQetSH44yIKUIK6GPc2vxQaPGAlH0mu+Z8PLp0wJZ7/WdhIdeQHGbOiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VUIghsxqKC81tk1qrG7YbMpAoAwEIZt92Zcc2pq+QedHjoZKIIbMaigvNbZNaqxu2GzKQKAMBCGbfdmXHNqavkHnR46GUiAEgJG8fdwoP3e/v5HXPETaWMPfipy8hnQF2Lfz2q2iL1ogHYQq8z3QIBonWAeHP4Zo1qeiOripQJNcCuxhAZ4JHT9iILhDN8QF6Q7pk+VmAI/Fv6N1nqcT3X7VGorCVrNJuYZDaiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VXIULxRYhmxZuyGFvvpTEeSR5j7g8/c=",
+                "CgIICxILc2VjcmV0ZGV2LTEYrQMiCwj30NCWBhC70eULKkgKIGH1WI4EPtx2eyiqngcVb1/X2Be+od8xifz7Jb8AQzl0EiQIARIg0+XBOqSo8VAROOeKSuewK/4blyng1kQG+HZEBp23el4yIOUYce+ofOUfVkjUhRCbO0UajjVQbVh2CP0IUxsnNEhdOiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VUIghsxqKC81tk1qrG7YbMpAoAwEIZt92Zcc2pq+QedHjoZKIIbMaigvNbZNaqxu2GzKQKAMBCGbfdmXHNqavkHnR46GUiAEgJG8fdwoP3e/v5HXPETaWMPfipy8hnQF2Lfz2q2iL1ogl4MbrPFAAk21Kp82nljmVZae3Dr5JRPgYsvYEi8Ogu1iIOOwxEKY/BwUmvv0yJlvuSQnrkHkZJuTTKSVmRt4UrhVaiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VXIULxRYhmxZuyGFvvpTEeSR5j7g8/c=",
+                "CgIICxILc2VjcmV0ZGV2LTEYrgMiCwj80NCWBhD4hbAPKkgKIPZI3h5ndk1+t2h2/vc/AITp2fe2AfoSitghKhBWKoUqEiQIARIgiFaBwlvNignOrpJCs6V4Uvp2Fv9/f4AT6Z2YxSXw2PcyIPIt6r1I2lrkGXTv9vzZ+vIX+nio6ZjmKvM7eJ3NlohsOiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VUIghsxqKC81tk1qrG7YbMpAoAwEIZt92Zcc2pq+QedHjoZKIIbMaigvNbZNaqxu2GzKQKAMBCGbfdmXHNqavkHnR46GUiAEgJG8fdwoP3e/v5HXPETaWMPfipy8hnQF2Lfz2q2iL1ogQ5mbBKoYu2GBURhfvlJNYiqVax0FaffsOCGfaR5Y6DRiIOOwxEKY/BwUmvv0yJlvuSQnrkHkZJuTTKSVmRt4UrhVaiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VXIULxRYhmxZuyGFvvpTEeSR5j7g8/c=",
+                "CgIICxILc2VjcmV0ZGV2LTEYrwMiCwiB0dCWBhCdqp4VKkgKIDEleN4mWq2vS9WB5SFbtLYDDLjxXBslh2HBVNLO0YFaEiQIARIgUB5WTuZG5+cHRKjslP547AOIShLFfNSzhnWBtviImZIyIHgOKLNYl3PbMvehI4tztSuqW/6hEkmwhiR4G65fkFQ3OiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VUIghsxqKC81tk1qrG7YbMpAoAwEIZt92Zcc2pq+QedHjoZKIIbMaigvNbZNaqxu2GzKQKAMBCGbfdmXHNqavkHnR46GUiAEgJG8fdwoP3e/v5HXPETaWMPfipy8hnQF2Lfz2q2iL1ogjyhp/dIRp1GiMkSsXJQVxbHnu16pjmkX9vwmOawOnMViIOOwxEKY/BwUmvv0yJlvuSQnrkHkZJuTTKSVmRt4UrhVaiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VXIULxRYhmxZuyGFvvpTEeSR5j7g8/c=",
+                "CgIICxILc2VjcmV0ZGV2LTEYsAMiCwiG0dCWBhC/yb0bKkgKIM11aE+/shfFQNfaGc3mnEptCqrOcCanSG8/DqVOAw92EiQIARIg1YnTPX1yDtagJz3VoeLD0B2d6Nc9+6q68F+muv4MReQyINNtESWd7m8pw5sqgjgP8i5Snf/1QPVpsChUGdqTdiDeOiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VUIghsxqKC81tk1qrG7YbMpAoAwEIZt92Zcc2pq+QedHjoZKIIbMaigvNbZNaqxu2GzKQKAMBCGbfdmXHNqavkHnR46GUiAEgJG8fdwoP3e/v5HXPETaWMPfipy8hnQF2Lfz2q2iL1ogRrutNowm+VAXK5f3Ias1hE2evrC4UWQ3blA3aBRHppxiIOOwxEKY/BwUmvv0yJlvuSQnrkHkZJuTTKSVmRt4UrhVaiDjsMRCmPwcFJr79MiZb7kkJ65B5GSbk0yklZkbeFK4VXIULxRYhmxZuyGFvvpTEeSR5j7g8/c="
+                ],
+                "block_hash_index": 42,
+                "encryption_key": "LlWet5oKuhFkEJSskLy2JOO/lKfnoyUyeAKHeIcw53s="
+            }
+        }"#;
+        serde_json::from_str::<HandleMsg>(&json).unwrap();
+    }
 }

@@ -11,16 +11,12 @@ pub enum Event {
     /// tag: 1
     MintCompleted(MintCompletedData),
     /// tag: 2
-    ReceivedFromTreasury(ReceivedFromTreasuryData),
-    /// tag: 3
     ReleaseStarted(ReleaseStartedData),
-    /// tag: 4
+    /// tag: 3
     ReleaseRequestConfirmed(ReleaseRequestConfirmedData),
-    /// tag: 5
+    /// tag: 4
     ReleaseCompleted(ReleaseCompletedData),
-    /// tag: 6
-    SentToTreasury(SentToTreasuryData),
-    /// tag: 7
+    /// tag: 5
     ReleaseIncorrectAmountBTC(ReleaseIncorrectAmountBTCData),
 }
 
@@ -28,7 +24,6 @@ pub enum Event {
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum EventSource {
     Gateway,
-    Treasury,
     User,
 }
 
@@ -42,7 +37,6 @@ impl Event {
             | Self::ReleaseStarted(_)
             | Self::ReleaseCompleted(_)
             | Self::ReleaseIncorrectAmountBTC(_) => EventSource::Gateway,
-            Self::ReceivedFromTreasury(_) | Self::SentToTreasury(_) => EventSource::Treasury,
             Self::ReleaseRequestConfirmed(_) => EventSource::User,
         }
     }
@@ -92,12 +86,6 @@ pub struct ReleaseCompletedData {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, schemars::JsonSchema)]
-pub struct SentToTreasuryData {
-    pub time: u64,
-    pub amount: Uint128,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, schemars::JsonSchema)]
 pub struct ReleaseIncorrectAmountBTCData {
     pub time: u64,
     pub amount: Uint128,
@@ -119,12 +107,10 @@ pub mod serde_event_on_storage {
         let (event_type, event_data) = match event {
             Event::MintStarted(data) => (0, Bincode2::serialize(data)?),
             Event::MintCompleted(data) => (1, Bincode2::serialize(data)?),
-            Event::ReceivedFromTreasury(data) => (2, Bincode2::serialize(data)?),
-            Event::ReleaseStarted(data) => (3, Bincode2::serialize(data)?),
-            Event::ReleaseRequestConfirmed(data) => (4, Bincode2::serialize(data)?),
-            Event::ReleaseCompleted(data) => (5, Bincode2::serialize(data)?),
-            Event::SentToTreasury(data) => (6, Bincode2::serialize(data)?),
-            Event::ReleaseIncorrectAmountBTC(data) => (7, Bincode2::serialize(data)?),
+            Event::ReleaseStarted(data) => (2, Bincode2::serialize(data)?),
+            Event::ReleaseRequestConfirmed(data) => (3, Bincode2::serialize(data)?),
+            Event::ReleaseCompleted(data) => (4, Bincode2::serialize(data)?),
+            Event::ReleaseIncorrectAmountBTC(data) => (5, Bincode2::serialize(data)?),
         };
         let mut serialized = event_data;
         serialized.push(event_type);
@@ -138,16 +124,12 @@ pub mod serde_event_on_storage {
         match event_type {
             0 => Ok(Event::MintStarted(Bincode2::deserialize(&event_data)?)),
             1 => Ok(Event::MintCompleted(Bincode2::deserialize(&event_data)?)),
-            2 => Ok(Event::ReceivedFromTreasury(Bincode2::deserialize(
+            2 => Ok(Event::ReleaseStarted(Bincode2::deserialize(&event_data)?)),
+            3 => Ok(Event::ReleaseRequestConfirmed(Bincode2::deserialize(
                 &event_data,
             )?)),
-            3 => Ok(Event::ReleaseStarted(Bincode2::deserialize(&event_data)?)),
-            4 => Ok(Event::ReleaseRequestConfirmed(Bincode2::deserialize(
-                &event_data,
-            )?)),
-            5 => Ok(Event::ReleaseCompleted(Bincode2::deserialize(&event_data)?)),
-            6 => Ok(Event::SentToTreasury(Bincode2::deserialize(&event_data)?)),
-            7 => Ok(Event::ReleaseIncorrectAmountBTC(Bincode2::deserialize(
+            4 => Ok(Event::ReleaseCompleted(Bincode2::deserialize(&event_data)?)),
+            5 => Ok(Event::ReleaseIncorrectAmountBTC(Bincode2::deserialize(
                 &event_data,
             )?)),
             x => Err(StdError::generic_err(format!(
@@ -183,14 +165,6 @@ pub mod serde_event_on_storage {
                     amount: 20,
                     txid: "txid_2".into(),
                 }),
-                Event::ReceivedFromTreasury(ReceivedFromTreasuryData {
-                    time: 10000,
-                    amount: 10u64.into(),
-                }),
-                Event::ReceivedFromTreasury(ReceivedFromTreasuryData {
-                    time: 20000,
-                    amount: 20u64.into(),
-                }),
                 Event::ReleaseStarted(ReleaseStartedData {
                     time: 10000,
                     request_key: RequestKey::new([0; 32]),
@@ -224,14 +198,6 @@ pub mod serde_event_on_storage {
                     request_key: RequestKey::new([1; 32]),
                     txid: "txid_2".into(),
                     fee_per_vb: 200,
-                }),
-                Event::SentToTreasury(SentToTreasuryData {
-                    time: 100000,
-                    amount: 10u64.into(),
-                }),
-                Event::SentToTreasury(SentToTreasuryData {
-                    time: 200000,
-                    amount: 20u64.into(),
                 }),
                 Event::ReleaseIncorrectAmountBTC(ReleaseIncorrectAmountBTCData {
                     time: 100000,

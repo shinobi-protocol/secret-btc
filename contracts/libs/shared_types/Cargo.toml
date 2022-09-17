@@ -9,13 +9,14 @@ version = "0.1.0"
 crate-type = ["cdylib", "rlib"]
 
 [features]
+default = ["gateway"]
 bitcoin_spv = []
 finance_admin = ["treasury", "gateway", "shuriken"]
 gateway = ["bitcoin_spv", "sfps", "viewing_key", "prng", "log"]
 log = ["viewing_key", "gateway"]
 multisig = []
 prng = ["rand", "secret-toolkit/crypto"]
-sfps = ["sfps_lib", "prng"]
+sfps = ["sfps_lib", "prng", "base64"]
 shuriken = ["bitcoin_spv", "sfps", "finance_admin"]
 treasury = ["log"]
 viewing_key = ["prng", "cosmwasm-storage"]
@@ -28,3 +29,7 @@ schemars = "0.7"
 secret-toolkit = "0.2.0"
 serde = {version = "1.0.103", default-features = false, features = ["derive"]}
 sfps_lib = {path = "../sfps_lib", optional = true}
+base64 = {version = "0.13.0", optional = true}
+
+[dev-dependencies]
+serde_json = "1.0.82"

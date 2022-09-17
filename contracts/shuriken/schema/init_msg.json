@@ -15,14 +15,10 @@
       "type": "object",
       "required": [
         "bitcoin_spv",
-        "finance_admin",
         "sfps"
       ],
       "properties": {
         "bitcoin_spv": {
-          "$ref": "#/definitions/ContractReference"
-        },
-        "finance_admin": {
           "$ref": "#/definitions/ContractReference"
         },
         "sfps": {

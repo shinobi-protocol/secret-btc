@@ -24,7 +24,6 @@
       "required": [
         "bitcoin_spv",
         "btc_tx_values",
-        "finance_admin",
         "log",
         "owner",
         "sbtc",
@@ -47,9 +46,6 @@
             "format": "uint64",
             "minimum": 0.0
           }
-        },
-        "finance_admin": {
-          "$ref": "#/definitions/ContractReference"
         },
         "log": {
           "$ref": "#/definitions/ContractReference"

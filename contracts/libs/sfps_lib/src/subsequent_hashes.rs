@@ -1,5 +1,4 @@
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fmt;
 use std::string::ToString;
@@ -25,13 +24,19 @@ impl From<bincode::Error> for Error {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Hashes {
-    pub first_hash: Vec<u8>,
-    pub following_hashes: Vec<Vec<u8>>,
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct HeaderHashWithHeight {
+    pub hash: Vec<u8>,
+    pub height: i64,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Hashes {
+    pub first_hash: Vec<u8>,
+    pub following_hashes: Vec<HeaderHashWithHeight>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct Commit(Vec<u8>);
 
 impl Commit {
@@ -44,7 +49,7 @@ impl Commit {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CommittedHashes {
     pub hashes: Hashes,
     pub commit: Commit,

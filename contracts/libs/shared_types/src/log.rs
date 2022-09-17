@@ -8,13 +8,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, schemars::JsonSchema, Debug, PartialEq)]
 pub struct Config {
     pub gateway: ContractReference,
-    pub treasury: ContractReference,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct CanonicalConfig {
     pub gateway: CanonicalContractReference,
-    pub treasury: CanonicalContractReference,
 }
 
 impl Canonicalize for Config {
@@ -22,13 +20,11 @@ impl Canonicalize for Config {
     fn into_canonical<A: Api>(self, api: &A) -> StdResult<Self::Canonicalized> {
         Ok(Self::Canonicalized {
             gateway: self.gateway.into_canonical(api)?,
-            treasury: self.treasury.into_canonical(api)?,
         })
     }
     fn from_canonical<A: Api>(canonical: Self::Canonicalized, api: &A) -> StdResult<Self> {
         Ok(Self {
             gateway: ContractReference::from_canonical(canonical.gateway, api)?,
-            treasury: ContractReference::from_canonical(canonical.treasury, api)?,
         })
     }
 }

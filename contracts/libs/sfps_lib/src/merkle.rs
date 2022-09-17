@@ -4,21 +4,12 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
-    InvalidLeafHash { given: Vec<u8>, proof: Vec<u8> },
     InvalidRootHash { given: Vec<u8>, proof: Vec<u8> },
     InvalidTotal,
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::InvalidLeafHash { given, proof } => {
-                write!(
-                    f,
-                    "invalid leaf hash: given {}, proof {}",
-                    hex::encode(&given),
-                    hex::encode(&proof)
-                )
-            }
             Error::InvalidRootHash { given, proof } => {
                 write!(
                     f,
@@ -46,7 +37,7 @@ pub struct MerkleProof {
     #[schemars(with = "String")]
     #[serde(serialize_with = "hex::serde::serialize_upper")]
     #[serde(deserialize_with = "hex::serde::deserialize")]
-    pub leaf_hash: Vec<u8>,
+    pub leaf: Vec<u8>,
     #[schemars(with = "Vec<String>")]
     #[serde(with = "serde_aunts")]
     pub aunts: Vec<Vec<u8>>,
@@ -97,14 +88,7 @@ mod serde_aunts {
 }
 
 impl MerkleProof {
-    pub fn verify(&self, root_hash: Vec<u8>, leaf: &[u8]) -> Result<(), Error> {
-        let leaf_hash = leaf_hash(leaf);
-        if leaf_hash != self.leaf_hash {
-            return Err(Error::InvalidLeafHash {
-                given: leaf_hash,
-                proof: self.leaf_hash.clone(),
-            });
-        }
+    pub fn verify(&self, root_hash: Vec<u8>) -> Result<(), Error> {
         let computed_root_hash = self.compute_root_hash()?;
         if root_hash != computed_root_hash {
             return Err(Error::InvalidRootHash {
@@ -118,7 +102,7 @@ impl MerkleProof {
 
 impl MerkleProof {
     fn compute_root_hash(&self) -> Result<Vec<u8>, Error> {
-        compute_from_aunts(self.index, self.total, &self.leaf_hash, &self.aunts)
+        compute_from_aunts(self.index, self.total, &leaf_hash(&self.leaf), &self.aunts)
     }
 }
 
@@ -271,32 +255,32 @@ mod test {
         let proof = MerkleProof {
             index: 0,
             total: 3,
-            leaf_hash: leaf_hashes[0].clone(),
+            leaf: leaves[0].clone(),
             aunts: vec![leaf_hashes[1].clone(), leaf_hashes[2].clone()],
         };
         let computed_root = proof.compute_root_hash().unwrap();
         assert_eq!(merkle_root, computed_root);
-        proof.verify(computed_root, &leaves[0]).unwrap();
+        proof.verify(computed_root).unwrap();
 
         let proof = MerkleProof {
             index: 1,
             total: 3,
-            leaf_hash: leaf_hashes[1].clone(),
+            leaf: leaves[1].clone(),
             aunts: vec![leaf_hashes[0].clone(), leaf_hashes[2].clone()],
         };
         let computed_root = proof.compute_root_hash().unwrap();
         assert_eq!(merkle_root, computed_root);
-        proof.verify(computed_root, &leaves[1]).unwrap();
+        proof.verify(computed_root).unwrap();
 
         let proof = MerkleProof {
             index: 2,
             total: 3,
-            leaf_hash: leaf_hashes[2].clone(),
+            leaf: leaves[2].clone(),
             aunts: vec![inner_hash(&leaf_hashes[0], &leaf_hashes[1])],
         };
         let computed_root = proof.compute_root_hash().unwrap();
         assert_eq!(merkle_root, computed_root);
-        proof.verify(computed_root, &leaves[2]).unwrap();
+        proof.verify(computed_root).unwrap();
 
         // 4 leaves
         let leaves = vec![b"1".to_vec(), b"2".to_vec(), b"3".to_vec(), b"4".to_vec()];
@@ -323,7 +307,7 @@ mod test {
         let proof = MerkleProof {
             index: 0,
             total: 4,
-            leaf_hash: leaf_hashes[0].clone(),
+            leaf: leaves[0].clone(),
             aunts: vec![
                 leaf_hashes[1].clone(),
                 inner_hash(&leaf_hashes[2], &leaf_hashes[3]),
@@ -331,12 +315,12 @@ mod test {
         };
         let computed_root = proof.compute_root_hash().unwrap();
         assert_eq!(merkle_root, computed_root);
-        proof.verify(computed_root, &leaves[0]).unwrap();
+        proof.verify(computed_root).unwrap();
 
         let proof = MerkleProof {
             index: 1,
             total: 4,
-            leaf_hash: leaf_hashes[1].clone(),
+            leaf: leaves[1].clone(),
             aunts: vec![
                 leaf_hashes[0].clone(),
                 inner_hash(&leaf_hashes[2], &leaf_hashes[3]),
@@ -344,12 +328,12 @@ mod test {
         };
         let computed_root = proof.compute_root_hash().unwrap();
         assert_eq!(merkle_root, computed_root);
-        proof.verify(computed_root, &leaves[1]).unwrap();
+        proof.verify(computed_root).unwrap();
 
         let proof = MerkleProof {
             index: 2,
             total: 4,
-            leaf_hash: leaf_hashes[2].clone(),
+            leaf: leaves[2].clone(),
             aunts: vec![
                 leaf_hashes[3].clone(),
                 inner_hash(&leaf_hashes[0], &leaf_hashes[1]),
@@ -357,12 +341,12 @@ mod test {
         };
         let computed_root = proof.compute_root_hash().unwrap();
         assert_eq!(merkle_root, computed_root);
-        proof.verify(computed_root, &leaves[2]).unwrap();
+        proof.verify(computed_root).unwrap();
 
         let proof = MerkleProof {
             index: 3,
             total: 4,
-            leaf_hash: leaf_hashes[3].clone(),
+            leaf: leaves[3].clone(),
             aunts: vec![
                 leaf_hashes[2].clone(),
                 inner_hash(&leaf_hashes[0], &leaf_hashes[1]),
@@ -370,7 +354,7 @@ mod test {
         };
         let computed_root = proof.compute_root_hash().unwrap();
         assert_eq!(merkle_root, computed_root);
-        proof.verify(computed_root, &leaves[3]).unwrap();
+        proof.verify(computed_root).unwrap();
     }
 
     #[test]
@@ -390,15 +374,19 @@ mod test {
         let proof = MerkleProof {
             index: 0,
             total: 3,
-            leaf_hash: leaf_hashes[0].clone(),
+            leaf: b"4".to_vec(),
             aunts: vec![leaf_hashes[1].clone(), leaf_hashes[2].clone()],
         };
-        let err = proof.verify(merkle_root, b"4").unwrap_err();
+        let err = proof.verify(merkle_root.clone()).unwrap_err();
+        println!("{:}", err);
         assert_eq!(
             err,
-            Error::InvalidLeafHash {
-                given: leaf_hash(b"4"),
-                proof: proof.leaf_hash
+            Error::InvalidRootHash {
+                given: merkle_root,
+                proof: hex::decode(
+                    "5128ed7949b963b76eaec8ade5edb4648005020cdc0c4eb4d84e958a5430c261"
+                )
+                .unwrap()
             }
         )
     }
@@ -420,10 +408,10 @@ mod test {
         let proof = MerkleProof {
             index: 0,
             total: 3,
-            leaf_hash: leaf_hashes[0].clone(),
+            leaf: b"1".to_vec(),
             aunts: vec![leaf_hashes[1].clone(), leaf_hashes[2].clone()],
         };
-        let err = proof.verify(invalid_merkle_root.clone(), b"1").unwrap_err();
+        let err = proof.verify(invalid_merkle_root.clone()).unwrap_err();
         assert_eq!(
             err,
             Error::InvalidRootHash {
@@ -439,7 +427,7 @@ mod test {
         {
             "total": 1,
             "index": 3,
-            "leaf_hash": "EE6E9D4604F578602851A2C15EF3894CA07B9517F7D5F7DEDC28179CA888580D",
+            "leaf": "EE6E9D4604F578602851A2C15EF3894CA07B9517F7D5F7DEDC28179CA888580D",
             "aunts": [
                 "2215E8AC4E2B871C2A48189E79738C956C081E23AC2F2415BF77DA199DFD920C",
                 "FA61E3DEC3439589F4784C893BF321D0084F04C572C7AF2B68E3F3360A35B486",
@@ -453,7 +441,7 @@ mod test {
             MerkleProof {
                 total: 1,
                 index: 3,
-                leaf_hash: hex::decode(
+                leaf: hex::decode(
                     "EE6E9D4604F578602851A2C15EF3894CA07B9517F7D5F7DEDC28179CA888580D"
                 )
                 .unwrap(),

@@ -17,7 +17,6 @@ fn test_query_config() {
             bitcoin_spv,
             sfps,
             sbtc,
-            finance_admin,
             log,
             owner,
         }) => {
@@ -28,8 +27,6 @@ fn test_query_config() {
             assert_eq!(sfps.hash, "sfps_hash".to_string());
             assert_eq!(sbtc.address, "sbtc_address".into());
             assert_eq!(sbtc.hash, "sbtc_hash".to_string());
-            assert_eq!(finance_admin.address, "finance_a_addr".into());
-            assert_eq!(finance_admin.hash, "finance_admin_hash".to_string());
             assert_eq!(log.address, "log_address".into());
             assert_eq!(log.hash, "log_hash".to_string());
             assert_eq!(owner, "owner".into());

@@ -64,13 +64,29 @@
         "following_hashes": {
           "type": "array",
           "items": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "minimum": 0.0
-            }
+            "$ref": "#/definitions/HeaderHashWithHeight"
           }
+        }
+      }
+    },
+    "HeaderHashWithHeight": {
+      "type": "object",
+      "required": [
+        "hash",
+        "height"
+      ],
+      "properties": {
+        "hash": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          }
+        },
+        "height": {
+          "type": "integer",
+          "format": "int64"
         }
       }
     }

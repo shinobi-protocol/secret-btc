@@ -16,7 +16,7 @@ use cosmwasm_std::{from_binary, to_binary, Api, Binary, StdError, WasmQuery};
 use rand::{thread_rng, Rng};
 use secret_toolkit::{snip20, utils::HandleCallback};
 use shared_types::gateway::*;
-use shared_types::{bitcoin_spv, finance_admin, log, sfps, BLOCK_SIZE};
+use shared_types::{bitcoin_spv, log, sfps, BLOCK_SIZE};
 use std::string::ToString;
 
 /// wrapper to serialize/deserialize snip20 TokenInfo response
@@ -218,7 +218,7 @@ fn test_verify_mint_tx_sanity() {
             merkle_proof: bitcoin_spv::MerkleProofMsg::default(),
         };
         let handle_response = handle(&mut deps, helper::mock_env("minter", &[]), msg).unwrap();
-        assert_eq!(handle_response.messages.len(), 3);
+        assert_eq!(handle_response.messages.len(), 2);
         assert_eq!(
             handle_response.messages[0],
             snip20::mint_msg(
@@ -234,16 +234,6 @@ fn test_verify_mint_tx_sanity() {
         );
         assert_eq!(
             handle_response.messages[1],
-            finance_admin::CommonHandleMsg::SendMintReward {
-                minter: "minter".into(),
-                sbtc_mint_amount: tx_value.into(),
-                sbtc_total_supply: 500000000u64.into(),
-            }
-            .to_cosmos_msg("finance_admin_hash".into(), "finance_a_addr".into(), None)
-            .unwrap()
-        );
-        assert_eq!(
-            handle_response.messages[2],
             log::HandleMsg::AddEvents {
                 events: vec![(
                     "minter".into(),
@@ -728,7 +718,7 @@ fn test_request_release_btc_sanity() {
             HandleAnswer::RequestReleaseBtc { request_key } => request_key,
             _ => panic!("unexpected"),
         };
-        assert_eq!(response.messages.len(), 3);
+        assert_eq!(response.messages.len(), 2);
         assert_eq!(
             response.messages[0],
             snip20::burn_from_msg(
@@ -744,16 +734,6 @@ fn test_request_release_btc_sanity() {
         );
         assert_eq!(
             response.messages[1],
-            finance_admin::CommonHandleMsg::ReceiveReleaseFee {
-                releaser: "releaser".into(),
-                sbtc_release_amount: tx_value.into(),
-                sbtc_total_supply: 500000000u64.into(),
-            }
-            .to_cosmos_msg("finance_admin_hash".into(), "finance_a_addr".into(), None)
-            .unwrap()
-        );
-        assert_eq!(
-            response.messages[2],
             log::HandleMsg::AddEvents {
                 events: vec![(
                     "releaser".into(),
@@ -860,51 +840,37 @@ fn test_claim_release_btc_sanity() {
     let request_key = gen_request_key(&canonical_releaser, &utxo, &mut thread_rng).unwrap();
     write_release_request_utxo(&mut deps.storage, &request_key, 100000000, utxo).unwrap();
 
-    let tx_result = sfps::sfps_lib::tx_result_proof::TxResult {
-        code: 0,
-        data: vec![],
-        gas_used: 0,
-        gas_wanted: 0,
-        log: "".into(),
-        info: "".into(),
-        events: vec![],
-        codespace: "".into(),
-    };
-
     let config = read_config(&deps.storage, &deps.api).unwrap();
 
     // create merkle proof
     let merkle_proof = sfps::sfps_lib::merkle::MerkleProof {
         total: 1,
         index: 0,
-        leaf_hash: vec![],
+        leaf: vec![],
         aunts: vec![],
-    };
-    let tx_result_proof = sfps::TxResultProof {
-        merkle_proof,
-        tx_result,
-        headers: vec![],
     };
 
     deps.querier.add_case(
         WasmQuery::Smart {
-            msg: to_padded_binary(&sfps::QueryMsg::VerifyTxResultProof {
-                tx_result_proof: tx_result_proof.clone(),
-                header_hash_index: 1,
+            msg: to_padded_binary(&sfps::QueryMsg::VerifyResponseDeliverTxProof {
+                merkle_proof: merkle_proof.clone(),
+                headers: vec![],
+                block_hash_index: 1,
                 encryption_key: Binary::from(b"encryption_key"),
             })
             .unwrap(),
             contract_addr: config.sfps.address,
             callback_code_hash: config.sfps.hash,
         },
-        sfps::QueryAnswer::VerifyTxResultProof {
+        sfps::QueryAnswer::VerifyResponseDeliverTxProof {
             decrypted_data: to_binary(&HandleAnswer::RequestReleaseBtc { request_key }).unwrap(),
         },
     );
     // Claim Release Tx
     let msg = HandleMsg::ClaimReleasedBtc {
-        tx_result_proof,
-        header_hash_index: 1,
+        merkle_proof,
+        headers: vec![],
+        block_hash_index: 1,
         encryption_key: Binary::from(b"encryption_key"),
         recipient_address: recipient_address.to_string(),
         fee_per_vb: 200,
@@ -955,8 +921,9 @@ fn test_suspend_claim_release_btc() {
     let mut deps = init_helper();
     //  handle
     let handle_msg = HandleMsg::ClaimReleasedBtc {
-        tx_result_proof: sfps::TxResultProof::default(),
-        header_hash_index: 0,
+        merkle_proof: sfps::MerkleProof::default(),
+        headers: vec![],
+        block_hash_index: 0,
         encryption_key: Binary::from(&[]),
         recipient_address: String::default(),
         fee_per_vb: 0,

@@ -1,8 +1,15 @@
-use crate::light_block::header::Header;
+use crate::header::hash_header;
+use crate::light_block::validate_light_block;
+use crate::light_block::verify_light_block;
 use crate::light_block::Ed25519Verifier;
-use crate::light_block::{Error as LightBlockError, LightBlock};
+use crate::light_block::Error as LightBlockError;
+use crate::response_deliver_tx_proof::{
+    Error as ResponseDeliverTxProofError, ResponseDeliverTxProof,
+};
+use crate::subsequent_hashes::HeaderHashWithHeight;
 use crate::subsequent_hashes::{CommittedHashes, Error as SubsequentHashesError, Hashes};
-use crate::tx_result_proof::{Error as TxResultProofError, TxResultProof};
+use cosmos_proto::tendermint::types::Header;
+use cosmos_proto::tendermint::types::LightBlock;
 use std::convert::TryInto;
 use std::fmt;
 
@@ -11,12 +18,13 @@ pub enum Error {
     AlreadyInitialized,
     LightClientDB(String),
     InvalidHighestHash,
+    InvalidCommitFlagsLength,
     ExceedsInterval { max: u64, actual: u64 },
     NoHighestHeaderHash,
     InvalidCurrentHighestHeader,
     UnmatchedValidatorsHash,
     LightBlock(LightBlockError),
-    TxResultProof(TxResultProofError),
+    ResponseDeliverTxProof(ResponseDeliverTxProofError),
     SubsequentHashes(SubsequentHashesError),
 }
 
@@ -26,6 +34,7 @@ impl std::fmt::Display for Error {
             Error::AlreadyInitialized => f.write_str("already initialized"),
             Error::LightClientDB(e) => write!(f, "chain db error: {}", e),
             Error::InvalidHighestHash => f.write_str("invalid highest hash"),
+            Error::InvalidCommitFlagsLength => f.write_str("invalid commit flags length"),
             Error::ExceedsInterval { max, actual } => {
                 write!(f, "exceeds interval: max {}, actual {}", max, actual)
             }
@@ -33,7 +42,7 @@ impl std::fmt::Display for Error {
             Error::InvalidCurrentHighestHeader => f.write_str("invalid current highest header"),
             Error::UnmatchedValidatorsHash => f.write_str("unmatched validators hash"),
             Error::LightBlock(e) => write!(f, "light block error: {}", e),
-            Error::TxResultProof(e) => write!(f, "tx result proof error: {}", e),
+            Error::ResponseDeliverTxProof(e) => write!(f, "tx result proof error: {}", e),
             Error::SubsequentHashes(e) => write!(f, "subsequent hashes error: {}", e),
         }
     }
@@ -45,9 +54,9 @@ impl From<LightBlockError> for Error {
     }
 }
 
-impl From<TxResultProofError> for Error {
-    fn from(e: TxResultProofError) -> Self {
-        Self::TxResultProof(e)
+impl From<ResponseDeliverTxProofError> for Error {
+    fn from(e: ResponseDeliverTxProofError) -> Self {
+        Self::ResponseDeliverTxProof(e)
     }
 }
 
@@ -58,8 +67,8 @@ impl From<SubsequentHashesError> for Error {
 }
 
 pub trait ReadonlyLightClientDB {
-    fn get_hash_by_index(&mut self, index: usize) -> Option<Vec<u8>>;
-    fn get_highest_hash(&mut self) -> Option<Vec<u8>>;
+    fn get_hash_by_index(&mut self, index: usize) -> Option<HeaderHashWithHeight>;
+    fn get_highest_hash(&mut self) -> Option<HeaderHashWithHeight>;
     fn get_hash_list_length(&mut self) -> usize;
     fn get_max_interval(&mut self) -> u64;
     fn get_commit_secret(&mut self) -> Vec<u8>;
@@ -67,7 +76,7 @@ pub trait ReadonlyLightClientDB {
 
 pub trait LightClientDB: ReadonlyLightClientDB {
     type Error: std::fmt::Display;
-    fn append_header_hash(&mut self, hash: Vec<u8>) -> Result<(), Self::Error>;
+    fn append_block_hash(&mut self, hash: HeaderHashWithHeight) -> Result<(), Self::Error>;
     fn store_max_interval(&mut self, max_interval: u64) -> Result<(), Self::Error>;
     fn store_commit_secret(&mut self, secret: &[u8]) -> Result<(), Self::Error>;
 }
@@ -81,40 +90,51 @@ impl<C: ReadonlyLightClientDB> LightClient<C> {
         Self { db }
     }
 
-    pub fn verify_tx_result_proof(
+    pub fn verify_response_deliver_tx_proof(
         &mut self,
-        tx_result_proof: &TxResultProof,
-        header_hash_index: usize,
+        response_deliver_tx_proof: &ResponseDeliverTxProof,
+        block_hash_index: usize,
     ) -> Result<(), Error> {
-        let highest_header_hash = tx_result_proof.verify()?;
-        if let Some(stored_hash) = self.db.get_hash_by_index(header_hash_index) {
-            if stored_hash == highest_header_hash {
+        let highest_block_hash = response_deliver_tx_proof.verify()?;
+        if let Some(stored_hash) = self.db.get_hash_by_index(block_hash_index) {
+            if stored_hash.hash == highest_block_hash {
                 return Ok(());
             }
         }
         Err(Error::InvalidHighestHash)
     }
 
-    pub fn verify_subsequent_light_blocks<E: Ed25519Verifier>(
+    pub fn verify_subsequent_light_blocks<S: ToString, E: Ed25519Verifier<S>>(
         &mut self,
         mut current_highest_header: Header,
         light_blocks: Vec<LightBlock>,
+        commit_flags: Vec<bool>,
         ed25519_verifier: &mut E,
     ) -> Result<CommittedHashes, Error> {
-        let first_hash = current_highest_header.hash();
-        let mut following_hashes = Vec::new();
+        let first_hash = hash_header(&current_highest_header);
         let current_highest_hash = self
             .db
             .get_highest_hash()
             .ok_or(Error::NoHighestHeaderHash)?;
-        if first_hash != current_highest_hash {
+        if first_hash != current_highest_hash.hash {
             return Err(Error::InvalidCurrentHighestHeader);
         }
+        if light_blocks.len() != commit_flags.len() {
+            return Err(Error::InvalidCommitFlagsLength);
+        }
+        let mut validators_hash = current_highest_header.next_validators_hash;
+        let mut following_hashes = Vec::new();
         let max_interval = self.db.get_max_interval();
-        for light_block in light_blocks {
-            let actual_interval: u64 = light_block
+        for (i, light_block) in light_blocks.iter().enumerate() {
+            self.verify_block(&validators_hash, &light_block, ed25519_verifier)?;
+            let header = light_block
                 .signed_header
+                .as_ref()
+                .unwrap()
                 .header
+                .as_ref()
+                .unwrap();
+            let actual_interval: u64 = header
                 .height
                 .checked_sub(current_highest_header.height)
                 .unwrap()
@@ -126,13 +146,15 @@ impl<C: ReadonlyLightClientDB> LightClient<C> {
                     actual: actual_interval,
                 });
             }
-            self.verify_block(
-                &current_highest_header.next_validators_hash,
-                &light_block,
-                ed25519_verifier,
-            )?;
-            following_hashes.push(light_block.signed_header.header.hash());
-            current_highest_header = light_block.signed_header.header.clone();
+
+            if commit_flags[i] {
+                following_hashes.push(HeaderHashWithHeight {
+                    hash: hash_header(header),
+                    height: header.height,
+                });
+                current_highest_header = header.clone();
+            }
+            validators_hash = header.next_validators_hash.clone();
         }
         Ok(CommittedHashes::new(
             Hashes {
@@ -143,16 +165,26 @@ impl<C: ReadonlyLightClientDB> LightClient<C> {
         )?)
     }
 
-    fn verify_block<E: Ed25519Verifier>(
+    fn verify_block<S: ToString, E: Ed25519Verifier<S>>(
         &self,
         validators_hash: &[u8],
         light_block: &LightBlock,
         ed25519_verifier: &mut E,
     ) -> Result<(), Error> {
-        if validators_hash != light_block.signed_header.header.validators_hash {
+        validate_light_block(&light_block)?;
+        if validators_hash
+            != light_block
+                .signed_header
+                .as_ref()
+                .unwrap()
+                .header
+                .as_ref()
+                .unwrap()
+                .validators_hash
+        {
             return Err(Error::UnmatchedValidatorsHash);
         }
-        light_block.verify(ed25519_verifier)?;
+        verify_light_block(light_block, ed25519_verifier)?;
         Ok(())
     }
 }
@@ -162,9 +194,11 @@ impl<C: LightClientDB> LightClient<C> {
         if self.db.get_hash_list_length() > 0 {
             return Err(Error::AlreadyInitialized);
         }
-        let hash = header.hash();
         self.db
-            .append_header_hash(hash)
+            .append_block_hash(HeaderHashWithHeight {
+                hash: hash_header(&header),
+                height: header.height,
+            })
             .map_err(|e| Error::LightClientDB(e.to_string()))?;
         self.db
             .store_max_interval(max_interval)
@@ -180,12 +214,12 @@ impl<C: LightClientDB> LightClient<C> {
             .db
             .get_highest_hash()
             .ok_or(Error::NoHighestHeaderHash)?;
-        if committed_hashes.hashes.first_hash != db_highest_hash {
+        if committed_hashes.hashes.first_hash != db_highest_hash.hash {
             return Err(Error::InvalidHighestHash);
         }
         for hash in committed_hashes.hashes.following_hashes {
             self.db
-                .append_header_hash(hash)
+                .append_block_hash(hash)
                 .map_err(|e| Error::LightClientDB(e.to_string()))?;
         }
         Ok(())

@@ -13,6 +13,7 @@ use bitcoin::blockdata::opcodes::all;
 use bitcoin::blockdata::script::Builder;
 use bitcoin::blockdata::transaction::{SigHashType, Transaction, TxIn, TxOut};
 use bitcoin::consensus::encode::{deserialize, serialize};
+use bitcoin::hashes::{sha256, Hash};
 use bitcoin::secp256k1::{sign, Message, SecretKey};
 use bitcoin::util::address::{Address, Payload};
 use bitcoin::util::sighash::SigHashCache;
@@ -27,9 +28,7 @@ use secret_toolkit::utils::padding::pad_handle_result;
 use secret_toolkit::utils::{HandleCallback, Query};
 use shared_types::gateway::*;
 use shared_types::prng::update_prng;
-use shared_types::{
-    bitcoin_spv, finance_admin, log, sfps, viewing_key, ContractReference, BLOCK_SIZE,
-};
+use shared_types::{bitcoin_spv, log, sfps, viewing_key, BLOCK_SIZE};
 use std::str::FromStr;
 use std::string::ToString;
 
@@ -91,8 +90,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             try_request_release_btc(deps, env, amount, entropy)
         }
         HandleMsg::ClaimReleasedBtc {
-            tx_result_proof,
-            header_hash_index,
+            merkle_proof,
+            headers,
+            block_hash_index,
             encryption_key,
             recipient_address,
             fee_per_vb,
@@ -104,15 +104,13 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             try_claim_released_btc(
                 deps,
                 env,
-                tx_result_proof,
-                header_hash_index,
+                merkle_proof,
+                headers,
+                block_hash_index,
                 encryption_key,
                 recipient_address,
                 fee_per_vb,
             )
-        }
-        HandleMsg::ChangeFinanceAdmin { new_finance_admin } => {
-            try_change_finance_admin(deps, env, new_finance_admin)
         }
         HandleMsg::ChangeOwner { new_owner } => try_change_owner(deps, env, new_owner),
         HandleMsg::SetSuspensionSwitch { suspension_switch } => {
@@ -308,16 +306,6 @@ fn try_verify_mint_tx<S: Storage, A: Api, Q: Querier>(
                 config.sbtc.hash,
                 config.sbtc.address,
             )?,
-            finance_admin::CommonHandleMsg::SendMintReward {
-                minter: env.message.sender.clone(),
-                sbtc_mint_amount: amount.into(),
-                sbtc_total_supply,
-            }
-            .to_cosmos_msg(
-                config.finance_admin.hash,
-                config.finance_admin.address,
-                None,
-            )?,
             log::HandleMsg::AddEvents {
                 events: vec![(
                     env.message.sender,
@@ -402,6 +390,7 @@ fn try_release_incorrect_amount_btc<S: Storage, A: Api, Q: Querier>(
         amount,
         fee_per_vb,
         recipient_address,
+        deps.api,
     )?;
     Ok(HandleResponse {
         messages: vec![log::HandleMsg::AddEvents {
@@ -468,16 +457,6 @@ fn try_request_release_btc<S: Storage, A: Api, Q: Querier>(
                 config.sbtc.hash,
                 config.sbtc.address,
             )?,
-            finance_admin::CommonHandleMsg::ReceiveReleaseFee {
-                releaser: env.message.sender.clone(),
-                sbtc_release_amount: amount.into(),
-                sbtc_total_supply,
-            }
-            .to_cosmos_msg(
-                config.finance_admin.hash,
-                config.finance_admin.address,
-                None,
-            )?,
             log::HandleMsg::AddEvents {
                 events: vec![(
                     env.message.sender,
@@ -499,8 +478,9 @@ fn try_request_release_btc<S: Storage, A: Api, Q: Querier>(
 fn try_claim_released_btc<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    tx_result_proof: sfps::TxResultProof,
-    header_hash_index: u64,
+    merkle_proof: sfps::MerkleProof,
+    headers: Vec<sfps::Header>,
+    block_hash_index: u64,
     encryption_key: Binary,
     recipient_address: String,
     fee_per_vb: u64,
@@ -509,11 +489,12 @@ fn try_claim_released_btc<S: Storage, A: Api, Q: Querier>(
     let config = read_config(&deps.storage, &deps.api)?;
 
     // Verify Merkle Proof
-    let request_key = match sfps::verify_tx_result_proof(
+    let request_key = match sfps::verify_response_deliver_tx_proof(
         &deps.querier,
         config.sfps,
-        tx_result_proof,
-        header_hash_index,
+        merkle_proof,
+        headers,
+        block_hash_index,
         encryption_key,
     )? {
         HandleAnswer::RequestReleaseBtc { request_key } => request_key,
@@ -530,6 +511,7 @@ fn try_claim_released_btc<S: Storage, A: Api, Q: Querier>(
         requested_utxo.value,
         fee_per_vb,
         recipient_address,
+        deps.api,
     )?;
 
     let res = HandleResponse {
@@ -551,20 +533,6 @@ fn try_claim_released_btc<S: Storage, A: Api, Q: Querier>(
         })?),
     };
     Ok(res)
-}
-
-fn try_change_finance_admin<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    new_finance_admin: ContractReference,
-) -> Result<HandleResponse, Error> {
-    let mut config = read_config(&deps.storage, &deps.api)?;
-    if env.message.sender != config.finance_admin.address {
-        return Err(Error::contract_err("not finance admin"));
-    }
-    config.finance_admin = new_finance_admin;
-    write_config(&mut deps.storage, config, &deps.api)?;
-    Ok(HandleResponse::default())
 }
 
 fn try_change_owner<S: Storage, A: Api, Q: Querier>(
@@ -626,6 +594,7 @@ fn try_release_btc_by_owner<S: Storage, A: Api, Q: Querier>(
         tx_value,
         fee_per_vb,
         recipient_address,
+        deps.api,
     )?;
 
     Ok(HandleResponse {
@@ -687,12 +656,13 @@ fn txin(outpoint: OutPoint) -> TxIn {
     }
 }
 
-fn sign_transaction(
+fn sign_transaction<A: Api>(
     tx_inputs: Vec<TxIn>,
     priv_keys: Vec<PrivateKey>,
     tx_value: u64,
     fee_per_vb: u64,
     recipient_address: Address,
+    api: A,
 ) -> Result<Transaction, Error> {
     let tx_inputs_size = tx_inputs.len() as u64;
     let fee = fee(&recipient_address, tx_inputs_size, fee_per_vb);
@@ -706,26 +676,62 @@ fn sign_transaction(
             script_pubkey: recipient_address.script_pubkey(),
         }],
     };
+    sign_to_tx(&mut tx, tx_value, &priv_keys, api)?;
+    Ok(tx)
+}
 
-    let sighash_type = SigHashType::All; // SIGHASH_ALL
-    let mut bip143hasher = SigHashCache::new(&mut tx);
+fn sign_to_tx<A: Api>(
+    tx: &mut Transaction,
+    tx_value: u64,
+    priv_keys: &[PrivateKey],
+    api: A,
+) -> Result<(), Error> {
+    let mut bip143hasher = SigHashCache::new(tx);
     for i in 0..priv_keys.len() {
         let priv_key = priv_keys[i];
         let pub_key = priv_key.public_key();
-        let sighash = bip143hasher.segwit_signature_hash(
+        let mut hash_engine = sha256::Hash::engine();
+        bip143hasher.segwit_encode_signing_data_to(
+            &mut hash_engine,
             i,
             &script_code(&pub_key),
             tx_value,
-            sighash_type,
+            SigHashType::All,
         )?;
-        let signature = sign(&Message::parse_slice(&sighash[..])?, &priv_key.key).0;
+        // sha256 hash of encoded data
+        let sha256_hash = sha256::Hash::from_engine(hash_engine);
+        let signature = {
+            #[cfg(not(test))]
+            {
+                // use api.secp256k1_sign(message, priv_key) in production.
+                // api.secp256k1_sign() takes message and hashes message by sha256 before sign.
+                // so, in order to  sign to the sha256d hash of the data,
+                // you have to pass sha256 hash of the data as message.
+                use bitcoin::secp256k1::Signature;
+                use std::convert::TryInto;
+                let signature = api
+                    .secp256k1_sign(&sha256_hash[..], &priv_key.key.serialize().as_slice())
+                    .map_err(|_| Error::contract_err("secp256k1 sign failed"))?;
+                Signature::parse_standard(&signature.try_into().unwrap()).unwrap()
+            }
+            #[cfg(test)]
+            {
+                // use secp256k1 pure rust library in test.
+                // sign(message, priv_key) take message and sign to the message directly.
+                // so, in order to sign to the sha256d hash of the data,
+                // you have to pass sha256d hash of the data as message.
+                let sha256d = sha256::Hash::hash(&sha256_hash[..]);
+                let message = Message::parse_slice(&sha256d[..])?;
+                sign(&message, &priv_key.key).0
+            }
+        };
         let mut with_hashtype = signature.serialize_der().as_ref().to_vec();
-        with_hashtype.push(sighash_type.as_u32() as u8);
+        with_hashtype.push(SigHashType::All.as_u32() as u8);
         bip143hasher.witness_mut(i).unwrap().push(with_hashtype);
         bip143hasher
             .witness_mut(i)
             .unwrap()
             .push(pub_key.to_bytes().to_vec());
     }
-    Ok(tx)
+    Ok(())
 }

@@ -1,7 +1,11 @@
-use crate::light_block::header::Header;
+use crate::header::hash_header;
 use crate::light_block::Ed25519Verifier;
-use crate::light_block::{Error as LightBlockError, LightBlock};
-use crate::tx_result_proof::{Error as TxResultProofError, TxResultProof};
+use crate::light_block::Error as LightBlockError;
+use crate::light_block::{validate_light_block, verify_light_block};
+use crate::response_deliver_tx_proof::{
+    Error as ResponseDeliverTxProofError, ResponseDeliverTxProof,
+};
+use cosmos_proto::tendermint::types::{Header, LightBlock};
 use std::convert::TryInto;
 use std::fmt;
 
@@ -14,7 +18,7 @@ pub trait ReadonlyChainDB {
 
 pub trait ChainDB: ReadonlyChainDB {
     type Error: std::fmt::Display;
-    fn append_header_hash(&mut self, hash: Vec<u8>) -> Result<(), Self::Error>;
+    fn append_block_hash(&mut self, hash: Vec<u8>) -> Result<(), Self::Error>;
     fn store_max_interval(&mut self, max_interval: u64) -> Result<(), Self::Error>;
 }
 
@@ -28,7 +32,7 @@ pub enum Error {
     InvalidCurrentHighestHeader,
     UnmatchedValidatorsHash,
     LightBlock(LightBlockError),
-    TxResultProof(TxResultProofError),
+    ResponseDeliverTxProof(ResponseDeliverTxProofError),
 }
 
 impl std::fmt::Display for Error {
@@ -44,7 +48,7 @@ impl std::fmt::Display for Error {
             Error::InvalidCurrentHighestHeader => f.write_str("invalid current highest header"),
             Error::UnmatchedValidatorsHash => f.write_str("unmatched validators hash"),
             Error::LightBlock(e) => write!(f, "light block error: {}", e),
-            Error::TxResultProof(e) => write!(f, "tx result proof error: {}", e),
+            Error::ResponseDeliverTxProof(e) => write!(f, "response deliver proof error: {}", e),
         }
     }
 }
@@ -55,9 +59,9 @@ impl From<LightBlockError> for Error {
     }
 }
 
-impl From<TxResultProofError> for Error {
-    fn from(e: TxResultProofError) -> Self {
-        Self::TxResultProof(e)
+impl From<ResponseDeliverTxProofError> for Error {
+    fn from(e: ResponseDeliverTxProofError) -> Self {
+        Self::ResponseDeliverTxProof(e)
     }
 }
 
@@ -69,14 +73,14 @@ impl<C: ReadonlyChainDB> HeaderChain<C> {
     pub fn new(chain_db: C) -> Self {
         Self { chain_db }
     }
-    pub fn verify_tx_result_proof(
+    pub fn verify_response_deliver_tx_proof(
         &mut self,
-        tx_result_proof: &TxResultProof,
-        header_hash_index: usize,
+        response_deliver_tx_proof: &ResponseDeliverTxProof,
+        block_hash_index: usize,
     ) -> Result<(), Error> {
-        let highest_header_hash = tx_result_proof.verify()?;
-        if let Some(stored_hash) = self.chain_db.get_hash_by_index(header_hash_index) {
-            if stored_hash == highest_header_hash {
+        let highest_block_hash = response_deliver_tx_proof.verify()?;
+        if let Some(stored_hash) = self.chain_db.get_hash_by_index(block_hash_index) {
+            if stored_hash == highest_block_hash {
                 return Ok(());
             }
         }
@@ -95,16 +99,21 @@ impl<C: ChainDB> HeaderChain<C> {
             .map_err(|e| Error::ChainDB(format!("{}", e)))
     }
 
-    pub fn add_block_to_highest<E: Ed25519Verifier>(
+    pub fn add_block_to_highest<S: ToString, E: Ed25519Verifier<S>>(
         &mut self,
         current_highest_header: &Header,
         light_block: LightBlock,
         ed25519_verifier: &mut E,
     ) -> Result<(), Error> {
+        validate_light_block(&light_block)?;
         {
             let actual: u64 = light_block
                 .signed_header
+                .as_ref()
+                .unwrap()
                 .header
+                .as_ref()
+                .unwrap()
                 .height
                 .checked_sub(current_highest_header.height)
                 .unwrap()
@@ -119,7 +128,7 @@ impl<C: ChainDB> HeaderChain<C> {
             .chain_db
             .get_highest_hash()
             .ok_or(Error::NoHighestHeaderHash)?;
-        if current_highest_header.hash() != current_highest_hash {
+        if hash_header(current_highest_header) != current_highest_hash {
             return Err(Error::InvalidCurrentHighestHeader);
         }
         self.verify_block(
@@ -127,26 +136,35 @@ impl<C: ChainDB> HeaderChain<C> {
             &light_block,
             ed25519_verifier,
         )?;
-        self.append_header(light_block.signed_header.header)
+        self.append_header(light_block.signed_header.unwrap().header.unwrap())
     }
 
-    fn verify_block<E: Ed25519Verifier>(
+    fn verify_block<S: ToString, E: Ed25519Verifier<S>>(
         &self,
         validators_hash: &[u8],
         light_block: &LightBlock,
         ed25519_verifier: &mut E,
     ) -> Result<(), Error> {
-        if validators_hash != light_block.signed_header.header.validators_hash {
+        if validators_hash
+            != light_block
+                .signed_header
+                .as_ref()
+                .unwrap()
+                .header
+                .as_ref()
+                .unwrap()
+                .validators_hash
+        {
             return Err(Error::UnmatchedValidatorsHash);
         }
-        light_block.verify(ed25519_verifier)?;
+        verify_light_block(light_block, ed25519_verifier)?;
         Ok(())
     }
 
     fn append_header(&mut self, header: Header) -> Result<(), Error> {
-        let hash = header.hash();
+        let hash = hash_header(&header);
         self.chain_db
-            .append_header_hash(hash)
+            .append_block_hash(hash)
             .map_err(|e| Error::ChainDB(format!("{}", e)))
     }
 }

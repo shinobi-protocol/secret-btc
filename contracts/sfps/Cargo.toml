@@ -44,4 +44,5 @@ shared_types = {path = "../libs/shared_types", features = ["sfps"]}
 
 [dev-dependencies]
 cosmwasm-schema = {version = "0.9.2"}
+serde_json = "1.0.82"
 hex = "0.4"

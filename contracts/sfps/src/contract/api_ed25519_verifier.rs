@@ -5,13 +5,13 @@ pub struct ApiEd25519Verifier<'a, A: Api> {
     pub api: &'a A,
 }
 
-impl<'a, A: Api> Ed25519Verifier for ApiEd25519Verifier<'a, A> {
+impl<'a, A: Api> Ed25519Verifier<String> for ApiEd25519Verifier<'a, A> {
     fn verify_batch(
         &mut self,
         messages: &[&[u8]],
         signatures: &[&[u8]],
         public_keys: &[&[u8]],
-    ) -> Result<(), sfps_lib::light_block::Error> {
+    ) -> Result<(), String> {
         #[cfg(feature = "full_signatures_test")]
         let (messages, signatures, public_keys) = (
             &repeat_element(messages.last().unwrap(), 80),
@@ -22,11 +22,11 @@ impl<'a, A: Api> Ed25519Verifier for ApiEd25519Verifier<'a, A> {
         if self
             .api
             .ed25519_batch_verify(messages, signatures, public_keys)
-            .map_err(|_| sfps_lib::light_block::Error::VerifyBatchFailed {})?
+            .map_err(|_| "verify batch failed: verify function returns error")?
         {
             Ok(())
         } else {
-            Err(sfps_lib::light_block::Error::VerifyBatchFailed {})
+            Err("verify batch faield: verify funtion returns false".to_string())
         }
     }
 }

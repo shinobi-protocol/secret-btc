@@ -34,7 +34,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
                 // Check if the message sender is authorized source of event.
                 let authorized_source_address = match event.authorized_source() {
                     EventSource::Gateway => &config.gateway.address,
-                    EventSource::Treasury => &config.treasury.address,
                     EventSource::User => &address,
                 };
                 if &env.message.sender != authorized_source_address {

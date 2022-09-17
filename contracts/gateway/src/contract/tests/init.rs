@@ -28,10 +28,6 @@ fn test_init_sanity() {
                 address: "sbtc_address".into(),
                 hash: "sbtc_hash".into(),
             },
-            finance_admin: ContractReference {
-                address: "finance_a_addr".into(),
-                hash: "finance_admin_hash".into(),
-            },
             log: ContractReference {
                 address: "log_addr".into(),
                 hash: "log_hash".into(),

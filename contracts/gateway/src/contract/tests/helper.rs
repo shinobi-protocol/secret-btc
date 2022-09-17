@@ -55,10 +55,6 @@ pub fn init_helper() -> Extern<MockStorage, MockApi, MockQuerier> {
                 address: "sbtc_address".into(),
                 hash: "sbtc_hash".into(),
             },
-            finance_admin: ContractReference {
-                address: "finance_a_addr".into(),
-                hash: "finance_admin_hash".into(),
-            },
             log: ContractReference {
                 address: "log_address".into(),
                 hash: "log_hash".into(),

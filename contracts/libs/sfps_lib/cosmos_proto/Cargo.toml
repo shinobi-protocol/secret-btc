@@ -1,0 +1,15 @@
+[package]
+name = "cosmos_proto"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+prost = "0.10.4"
+prost-types = "0.10.1"
+sha2 = "0.10.2"
+
+[dev-dependencies]
+hex = {version = "0.4.3", features = ["serde"]}
+
+[build-dependencies]
+prost-build = "0.10.4"

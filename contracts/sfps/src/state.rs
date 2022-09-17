@@ -3,19 +3,20 @@ use cosmwasm_std::{ReadonlyStorage, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use secret_toolkit::storage::{AppendStore, AppendStoreMut};
 use sfps_lib::light_client::{LightClientDB, ReadonlyLightClientDB};
+use sfps_lib::subsequent_hashes::HeaderHashWithHeight;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
 pub const PREFIX_CHAIN_DB: &[u8] = b"light_client_db";
 pub const PREFIX_PRNG: &[u8] = b"prng";
-pub const PREFIX_HEADER_HASH: &[u8] = b"header_hash";
+pub const PREFIX_BLOCK_HASH: &[u8] = b"block_hash";
 pub const MAX_INTERVAL_KEY: &[u8] = b"max_interval";
 pub const COMMIT_SECRET_KEY: &[u8] = b"commit_secret";
 
 pub struct StorageLightClientDB<S: ReadonlyStorage> {
     storage: S,
-    hash_by_index_cache: HashMap<usize, Vec<u8>>,
-    highest_hash_cache: Option<Vec<u8>>,
+    hash_by_index_cache: HashMap<usize, HeaderHashWithHeight>,
+    highest_hash_cache: Option<HeaderHashWithHeight>,
     hash_list_length_cache: Option<usize>,
     max_interval_cache: Option<u64>,
 }
@@ -45,25 +46,25 @@ impl<'a, S: Storage> StorageLightClientDB<PrefixedStorage<'a, S>> {
 }
 
 impl<S: ReadonlyStorage> ReadonlyLightClientDB for StorageLightClientDB<S> {
-    fn get_hash_by_index(&mut self, index: usize) -> Option<Vec<u8>> {
+    fn get_hash_by_index(&mut self, index: usize) -> Option<HeaderHashWithHeight> {
         match self.hash_by_index_cache.get(&index) {
             Some(hash) => Some(hash.clone()),
             None => {
-                let storage = ReadonlyPrefixedStorage::new(PREFIX_HEADER_HASH, &self.storage);
+                let storage = ReadonlyPrefixedStorage::new(PREFIX_BLOCK_HASH, &self.storage);
                 let storage = AppendStore::attach(&storage)?.ok()?;
-                let hash: Vec<u8> = storage.get_at(index as u32).ok()?;
+                let hash: HeaderHashWithHeight = storage.get_at(index as u32).ok()?;
                 self.hash_by_index_cache.insert(index, hash.clone());
                 Some(hash)
             }
         }
     }
-    fn get_highest_hash(&mut self) -> Option<Vec<u8>> {
+    fn get_highest_hash(&mut self) -> Option<HeaderHashWithHeight> {
         match &self.highest_hash_cache {
             Some(hash) => Some(hash.clone()),
             None => {
-                let storage = ReadonlyPrefixedStorage::new(PREFIX_HEADER_HASH, &self.storage);
+                let storage = ReadonlyPrefixedStorage::new(PREFIX_BLOCK_HASH, &self.storage);
                 let storage = AppendStore::attach(&storage)?.ok()?;
-                let hash: Option<Vec<u8>> = storage.get_at(storage.len() - 1).ok();
+                let hash: Option<HeaderHashWithHeight> = storage.get_at(storage.len() - 1).ok();
                 self.highest_hash_cache = hash.clone();
                 hash
             }
@@ -73,9 +74,11 @@ impl<S: ReadonlyStorage> ReadonlyLightClientDB for StorageLightClientDB<S> {
         match self.hash_list_length_cache {
             Some(length) => length,
             None => {
-                let storage = ReadonlyPrefixedStorage::new(PREFIX_HEADER_HASH, &self.storage);
+                let storage = ReadonlyPrefixedStorage::new(PREFIX_BLOCK_HASH, &self.storage);
                 if let Some(result) =
-                    AppendStore::<Vec<u8>, ReadonlyPrefixedStorage<S>>::attach(&storage)
+                    AppendStore::<HeaderHashWithHeight, ReadonlyPrefixedStorage<S>>::attach(
+                        &storage,
+                    )
                 {
                     if let Ok(storage) = result {
                         let length = storage.len() as usize;
@@ -108,14 +111,14 @@ impl<S: ReadonlyStorage> ReadonlyLightClientDB for StorageLightClientDB<S> {
 
 impl<S: Storage> LightClientDB for StorageLightClientDB<S> {
     type Error = StdError;
-    fn append_header_hash(&mut self, header_hash: Vec<u8>) -> Result<(), Self::Error> {
+    fn append_block_hash(&mut self, block_hash: HeaderHashWithHeight) -> Result<(), Self::Error> {
         let index = self.get_hash_list_length();
-        self.hash_by_index_cache.insert(index, header_hash.clone());
+        self.hash_by_index_cache.insert(index, block_hash.clone());
         self.hash_list_length_cache = Some(index + 1);
-        self.highest_hash_cache = Some(header_hash.clone());
-        let mut storage = PrefixedStorage::new(PREFIX_HEADER_HASH, &mut self.storage);
+        self.highest_hash_cache = Some(block_hash.clone());
+        let mut storage = PrefixedStorage::new(PREFIX_BLOCK_HASH, &mut self.storage);
         let mut storage = AppendStoreMut::attach_or_create(&mut storage)?;
-        Ok(storage.push(&header_hash)?)
+        Ok(storage.push(&block_hash)?)
     }
     fn store_max_interval(&mut self, max_interval: u64) -> Result<(), Self::Error> {
         self.max_interval_cache = Some(max_interval);
@@ -135,15 +138,20 @@ mod test {
     use cosmwasm_std::testing::*;
 
     #[test]
-    fn test_store_header_hash() {
+    fn test_store_block_hash() {
         let mut storage = MockStorage::new();
         let mut db = StorageLightClientDB::from_storage(&mut storage);
         let hash = hex::decode("B27B2FEEA5EB3D67C2BB21B5038E145F5706A96636D367C5119A6E2E73764455")
             .unwrap();
+        let header_hash_with_height = HeaderHashWithHeight {
+            hash: hash.clone(),
+            height: 1,
+        };
         assert!(db.get_hash_by_index(0).is_none());
         assert_eq!(db.get_hash_list_length(), 0);
-        db.append_header_hash(hash.clone()).unwrap();
-        assert_eq!(db.get_hash_by_index(0).unwrap(), hash);
+        db.append_block_hash(header_hash_with_height.clone())
+            .unwrap();
+        assert_eq!(db.get_hash_by_index(0).unwrap(), header_hash_with_height);
         assert_eq!(db.get_hash_list_length(), 1);
     }
 }

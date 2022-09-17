@@ -40,14 +40,10 @@
     "Config": {
       "type": "object",
       "required": [
-        "gateway",
-        "treasury"
+        "gateway"
       ],
       "properties": {
         "gateway": {
-          "$ref": "#/definitions/ContractReference"
-        },
-        "treasury": {
           "$ref": "#/definitions/ContractReference"
         }
       }
@@ -98,18 +94,6 @@
           "description": "tag: 2",
           "type": "object",
           "required": [
-            "received_from_treasury"
-          ],
-          "properties": {
-            "received_from_treasury": {
-              "$ref": "#/definitions/ReceivedFromTreasuryData"
-            }
-          }
-        },
-        {
-          "description": "tag: 3",
-          "type": "object",
-          "required": [
             "release_started"
           ],
           "properties": {
@@ -119,7 +103,7 @@
           }
         },
         {
-          "description": "tag: 4",
+          "description": "tag: 3",
           "type": "object",
           "required": [
             "release_request_confirmed"
@@ -131,7 +115,7 @@
           }
         },
         {
-          "description": "tag: 5",
+          "description": "tag: 4",
           "type": "object",
           "required": [
             "release_completed"
@@ -143,19 +127,7 @@
           }
         },
         {
-          "description": "tag: 6",
-          "type": "object",
-          "required": [
-            "sent_to_treasury"
-          ],
-          "properties": {
-            "sent_to_treasury": {
-              "$ref": "#/definitions/SentToTreasuryData"
-            }
-          }
-        },
-        {
-          "description": "tag: 7",
+          "description": "tag: 5",
           "type": "object",
           "required": [
             "release_incorrect_amount_b_t_c"
@@ -207,23 +179,6 @@
       "properties": {
         "address": {
           "type": "string"
-        },
-        "time": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        }
-      }
-    },
-    "ReceivedFromTreasuryData": {
-      "type": "object",
-      "required": [
-        "amount",
-        "time"
-      ],
-      "properties": {
-        "amount": {
-          "$ref": "#/definitions/Uint128"
         },
         "time": {
           "type": "integer",
@@ -348,23 +303,6 @@
       },
       "maxItems": 32,
       "minItems": 32
-    },
-    "SentToTreasuryData": {
-      "type": "object",
-      "required": [
-        "amount",
-        "time"
-      ],
-      "properties": {
-        "amount": {
-          "$ref": "#/definitions/Uint128"
-        },
-        "time": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        }
-      }
     },
     "Uint128": {
       "type": "string"

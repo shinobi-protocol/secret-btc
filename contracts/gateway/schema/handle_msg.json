@@ -161,13 +161,19 @@
         "claim_released_btc": {
           "type": "object",
           "required": [
+            "block_hash_index",
             "encryption_key",
             "fee_per_vb",
-            "header_hash_index",
-            "recipient_address",
-            "tx_result_proof"
+            "headers",
+            "merkle_proof",
+            "recipient_address"
           ],
           "properties": {
+            "block_hash_index": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "encryption_key": {
               "$ref": "#/definitions/Binary"
             },
@@ -176,35 +182,17 @@
               "format": "uint64",
               "minimum": 0.0
             },
-            "header_hash_index": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
+            "headers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "merkle_proof": {
+              "$ref": "#/definitions/MerkleProof"
             },
             "recipient_address": {
               "type": "string"
-            },
-            "tx_result_proof": {
-              "$ref": "#/definitions/TxResultProof"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "change_finance_admin"
-      ],
-      "properties": {
-        "change_finance_admin": {
-          "type": "object",
-          "required": [
-            "new_finance_admin"
-          ],
-          "properties": {
-            "new_finance_admin": {
-              "$ref": "#/definitions/ContractReference"
             }
           }
         }
@@ -291,130 +279,6 @@
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
     },
-    "BlockId": {
-      "description": "BlockID",
-      "type": "object",
-      "required": [
-        "hash"
-      ],
-      "properties": {
-        "hash": {
-          "type": "string"
-        },
-        "parts": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/PartSetHeader"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
-    "ContractReference": {
-      "type": "object",
-      "required": [
-        "address",
-        "hash"
-      ],
-      "properties": {
-        "address": {
-          "$ref": "#/definitions/HumanAddr"
-        },
-        "hash": {
-          "type": "string"
-        }
-      }
-    },
-    "Header": {
-      "type": "object",
-      "required": [
-        "app_hash",
-        "chain_id",
-        "consensus_hash",
-        "data_hash",
-        "evidence_hash",
-        "height",
-        "last_block_id",
-        "last_commit_hash",
-        "last_results_hash",
-        "next_validators_hash",
-        "proposer_address",
-        "time",
-        "validators_hash"
-      ],
-      "properties": {
-        "app_hash": {
-          "description": "State after txs from the previous block",
-          "type": "string"
-        },
-        "chain_id": {
-          "description": "Chain ID",
-          "type": "string"
-        },
-        "consensus_hash": {
-          "description": "Consensus params for the current block",
-          "type": "string"
-        },
-        "data_hash": {
-          "description": "Merkle root of transaction hashes",
-          "type": "string"
-        },
-        "evidence_hash": {
-          "description": "Hash of evidence included in the block",
-          "type": "string"
-        },
-        "height": {
-          "description": "Current block height",
-          "type": "string"
-        },
-        "last_block_id": {
-          "description": "Previous block info",
-          "allOf": [
-            {
-              "$ref": "#/definitions/BlockId"
-            }
-          ]
-        },
-        "last_commit_hash": {
-          "description": "Commit from validators from the last block",
-          "type": "string"
-        },
-        "last_results_hash": {
-          "description": "Root hash of all results from the txs from the previous block",
-          "type": "string"
-        },
-        "next_validators_hash": {
-          "description": "Validators for the next block",
-          "type": "string"
-        },
-        "proposer_address": {
-          "description": "Original proposer of the block",
-          "type": "string"
-        },
-        "time": {
-          "description": "Current timestamp",
-          "type": "string"
-        },
-        "validators_hash": {
-          "description": "Validators for the current block",
-          "type": "string"
-        },
-        "version": {
-          "description": "Header version",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Version"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
     "HumanAddr": {
       "type": "string"
     },
@@ -423,7 +287,7 @@
       "required": [
         "aunts",
         "index",
-        "leaf_hash",
+        "leaf",
         "total"
       ],
       "properties": {
@@ -438,7 +302,7 @@
           "format": "uint64",
           "minimum": 0.0
         },
-        "leaf_hash": {
+        "leaf": {
           "type": "string"
         },
         "total": {
@@ -469,24 +333,6 @@
         }
       }
     },
-    "PartSetHeader": {
-      "description": "Block parts header",
-      "type": "object",
-      "required": [
-        "hash",
-        "total"
-      ],
-      "properties": {
-        "hash": {
-          "type": "string"
-        },
-        "total": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0.0
-        }
-      }
-    },
     "SuspensionSwitch": {
       "type": "object",
       "required": [
@@ -511,70 +357,6 @@
         },
         "verify_mint_tx": {
           "type": "boolean"
-        }
-      }
-    },
-    "TxResult": {
-      "type": "object",
-      "required": [
-        "code",
-        "data",
-        "gas_used",
-        "gas_wanted"
-      ],
-      "properties": {
-        "code": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0.0
-        },
-        "data": {
-          "type": "string"
-        },
-        "gas_used": {
-          "type": "string"
-        },
-        "gas_wanted": {
-          "type": "string"
-        }
-      }
-    },
-    "TxResultProof": {
-      "type": "object",
-      "required": [
-        "headers",
-        "merkle_proof",
-        "tx_result"
-      ],
-      "properties": {
-        "headers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Header"
-          }
-        },
-        "merkle_proof": {
-          "$ref": "#/definitions/MerkleProof"
-        },
-        "tx_result": {
-          "$ref": "#/definitions/TxResult"
-        }
-      }
-    },
-    "Version": {
-      "type": "object",
-      "required": [
-        "block"
-      ],
-      "properties": {
-        "app": {
-          "description": "App version",
-          "default": "0",
-          "type": "string"
-        },
-        "block": {
-          "description": "Block version",
-          "type": "string"
         }
       }
     },
