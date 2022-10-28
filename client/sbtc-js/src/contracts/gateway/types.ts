@@ -52,19 +52,9 @@ export interface HandleMsg {
     release_incorrect_amount_b_t_c?: HandleMsgReleaseIncorrectAmountBTC;
     request_release_btc?: HandleMsgRequestReleaseBtc;
     claim_released_btc?: HandleMsgClaimReleasedBtc;
-    change_finance_admin?: ChangeFinanceAdmin;
     change_owner?: ChangeOwner;
     set_suspension_switch?: SetSuspensionSwitch;
     release_btc_by_owner?: HandleMsgReleaseBtcByOwner;
-}
-
-export interface ChangeFinanceAdmin {
-    new_finance_admin: NewFinanceAdminObject;
-}
-
-export interface NewFinanceAdminObject {
-    address: string;
-    hash: string;
 }
 
 export interface ChangeOwner {
@@ -72,119 +62,19 @@ export interface ChangeOwner {
 }
 
 export interface HandleMsgClaimReleasedBtc {
+    block_hash_index: number;
     encryption_key: string;
     fee_per_vb: number;
-    header_hash_index: number;
-    recipient_address: string;
-    tx_result_proof: TxResultProof;
-}
-
-export interface TxResultProof {
-    headers: Header[];
+    headers: string[];
     merkle_proof: MerkleProof;
-    tx_result: TxResult;
-}
-
-export interface Header {
-    /**
-     * State after txs from the previous block
-     */
-    app_hash: string;
-    /**
-     * Chain ID
-     */
-    chain_id: string;
-    /**
-     * Consensus params for the current block
-     */
-    consensus_hash: string;
-    /**
-     * Merkle root of transaction hashes
-     */
-    data_hash: string;
-    /**
-     * Hash of evidence included in the block
-     */
-    evidence_hash: string;
-    /**
-     * Current block height
-     */
-    height: string;
-    /**
-     * Previous block info
-     */
-    last_block_id: BlockID;
-    /**
-     * Commit from validators from the last block
-     */
-    last_commit_hash: string;
-    /**
-     * Root hash of all results from the txs from the previous block
-     */
-    last_results_hash: string;
-    /**
-     * Validators for the next block
-     */
-    next_validators_hash: string;
-    /**
-     * Original proposer of the block
-     */
-    proposer_address: string;
-    /**
-     * Current timestamp
-     */
-    time: string;
-    /**
-     * Validators for the current block
-     */
-    validators_hash: string;
-    /**
-     * Header version
-     */
-    version?: null | Version;
-}
-
-/**
- * Previous block info
- *
- * BlockID
- */
-export interface BlockID {
-    hash: string;
-    parts?: null | PartSetHeader;
-}
-
-/**
- * Block parts header
- */
-export interface PartSetHeader {
-    hash: string;
-    total: number;
-}
-
-export interface Version {
-    /**
-     * App version
-     */
-    app?: string;
-    /**
-     * Block version
-     */
-    block: string;
+    recipient_address: string;
 }
 
 export interface MerkleProof {
     aunts: string[];
     index: number;
-    leaf_hash: string;
+    leaf: string;
     total: number;
-}
-
-export interface TxResult {
-    code: number;
-    data: string;
-    gas_used: string;
-    gas_wanted: string;
 }
 
 export interface HandleMsgCreateViewingKey {
@@ -244,7 +134,7 @@ export interface VerifyMintTx {
 
 export interface InitMsg {
     config: InitMsgConfig;
-    entropy: string;
+    seed: number[];
 }
 
 export interface InitMsgConfig {
@@ -256,7 +146,6 @@ export interface InitMsgConfig {
      * [Bitcoin] Unit of utxo value that the contrat accepts
      */
     btc_tx_values: number[];
-    finance_admin: PurpleContractReference;
     log: PurpleContractReference;
     /**
      * [Owner]
@@ -264,6 +153,7 @@ export interface InitMsgConfig {
     owner: string;
     sbtc: PurpleContractReference;
     sfps: PurpleContractReference;
+    state_proxy: PurpleContractReference;
 }
 
 /**
@@ -290,7 +180,6 @@ export interface QueryAnswerConfig {
      * [Bitcoin] Unit of utxo value that the contrat accepts
      */
     btc_tx_values: number[];
-    finance_admin: FluffyContractReference;
     log: FluffyContractReference;
     /**
      * [Owner]
@@ -298,6 +187,7 @@ export interface QueryAnswerConfig {
     owner: string;
     sbtc: FluffyContractReference;
     sfps: FluffyContractReference;
+    state_proxy: FluffyContractReference;
 }
 
 /**
@@ -625,11 +515,6 @@ const typeMap: any = {
                 typ: u(undefined, r('HandleMsgClaimReleasedBtc')),
             },
             {
-                json: 'change_finance_admin',
-                js: 'change_finance_admin',
-                typ: u(undefined, r('ChangeFinanceAdmin')),
-            },
-            {
                 json: 'change_owner',
                 js: 'change_owner',
                 typ: u(undefined, r('ChangeOwner')),
@@ -647,95 +532,15 @@ const typeMap: any = {
         ],
         'any'
     ),
-    ChangeFinanceAdmin: o(
-        [
-            {
-                json: 'new_finance_admin',
-                js: 'new_finance_admin',
-                typ: r('NewFinanceAdminObject'),
-            },
-        ],
-        'any'
-    ),
-    NewFinanceAdminObject: o(
-        [
-            { json: 'address', js: 'address', typ: '' },
-            { json: 'hash', js: 'hash', typ: '' },
-        ],
-        'any'
-    ),
     ChangeOwner: o([{ json: 'new_owner', js: 'new_owner', typ: '' }], 'any'),
     HandleMsgClaimReleasedBtc: o(
         [
+            { json: 'block_hash_index', js: 'block_hash_index', typ: 0 },
             { json: 'encryption_key', js: 'encryption_key', typ: '' },
             { json: 'fee_per_vb', js: 'fee_per_vb', typ: 0 },
-            { json: 'header_hash_index', js: 'header_hash_index', typ: 0 },
-            { json: 'recipient_address', js: 'recipient_address', typ: '' },
-            {
-                json: 'tx_result_proof',
-                js: 'tx_result_proof',
-                typ: r('TxResultProof'),
-            },
-        ],
-        'any'
-    ),
-    TxResultProof: o(
-        [
-            { json: 'headers', js: 'headers', typ: a(r('Header')) },
+            { json: 'headers', js: 'headers', typ: a('') },
             { json: 'merkle_proof', js: 'merkle_proof', typ: r('MerkleProof') },
-            { json: 'tx_result', js: 'tx_result', typ: r('TxResult') },
-        ],
-        'any'
-    ),
-    Header: o(
-        [
-            { json: 'app_hash', js: 'app_hash', typ: '' },
-            { json: 'chain_id', js: 'chain_id', typ: '' },
-            { json: 'consensus_hash', js: 'consensus_hash', typ: '' },
-            { json: 'data_hash', js: 'data_hash', typ: '' },
-            { json: 'evidence_hash', js: 'evidence_hash', typ: '' },
-            { json: 'height', js: 'height', typ: '' },
-            { json: 'last_block_id', js: 'last_block_id', typ: r('BlockID') },
-            { json: 'last_commit_hash', js: 'last_commit_hash', typ: '' },
-            { json: 'last_results_hash', js: 'last_results_hash', typ: '' },
-            {
-                json: 'next_validators_hash',
-                js: 'next_validators_hash',
-                typ: '',
-            },
-            { json: 'proposer_address', js: 'proposer_address', typ: '' },
-            { json: 'time', js: 'time', typ: '' },
-            { json: 'validators_hash', js: 'validators_hash', typ: '' },
-            {
-                json: 'version',
-                js: 'version',
-                typ: u(undefined, u(null, r('Version'))),
-            },
-        ],
-        'any'
-    ),
-    BlockID: o(
-        [
-            { json: 'hash', js: 'hash', typ: '' },
-            {
-                json: 'parts',
-                js: 'parts',
-                typ: u(undefined, u(null, r('PartSetHeader'))),
-            },
-        ],
-        'any'
-    ),
-    PartSetHeader: o(
-        [
-            { json: 'hash', js: 'hash', typ: '' },
-            { json: 'total', js: 'total', typ: 0 },
-        ],
-        'any'
-    ),
-    Version: o(
-        [
-            { json: 'app', js: 'app', typ: u(undefined, '') },
-            { json: 'block', js: 'block', typ: '' },
+            { json: 'recipient_address', js: 'recipient_address', typ: '' },
         ],
         'any'
     ),
@@ -743,17 +548,8 @@ const typeMap: any = {
         [
             { json: 'aunts', js: 'aunts', typ: a('') },
             { json: 'index', js: 'index', typ: 0 },
-            { json: 'leaf_hash', js: 'leaf_hash', typ: '' },
+            { json: 'leaf', js: 'leaf', typ: '' },
             { json: 'total', js: 'total', typ: 0 },
-        ],
-        'any'
-    ),
-    TxResult: o(
-        [
-            { json: 'code', js: 'code', typ: 0 },
-            { json: 'data', js: 'data', typ: '' },
-            { json: 'gas_used', js: 'gas_used', typ: '' },
-            { json: 'gas_wanted', js: 'gas_wanted', typ: '' },
         ],
         'any'
     ),
@@ -850,7 +646,7 @@ const typeMap: any = {
     InitMsg: o(
         [
             { json: 'config', js: 'config', typ: r('InitMsgConfig') },
-            { json: 'entropy', js: 'entropy', typ: '' },
+            { json: 'seed', js: 'seed', typ: a(0) },
         ],
         'any'
     ),
@@ -862,15 +658,15 @@ const typeMap: any = {
                 typ: r('PurpleContractReference'),
             },
             { json: 'btc_tx_values', js: 'btc_tx_values', typ: a(0) },
-            {
-                json: 'finance_admin',
-                js: 'finance_admin',
-                typ: r('PurpleContractReference'),
-            },
             { json: 'log', js: 'log', typ: r('PurpleContractReference') },
             { json: 'owner', js: 'owner', typ: '' },
             { json: 'sbtc', js: 'sbtc', typ: r('PurpleContractReference') },
             { json: 'sfps', js: 'sfps', typ: r('PurpleContractReference') },
+            {
+                json: 'state_proxy',
+                js: 'state_proxy',
+                typ: r('PurpleContractReference'),
+            },
         ],
         'any'
     ),
@@ -914,15 +710,15 @@ const typeMap: any = {
                 typ: r('FluffyContractReference'),
             },
             { json: 'btc_tx_values', js: 'btc_tx_values', typ: a(0) },
-            {
-                json: 'finance_admin',
-                js: 'finance_admin',
-                typ: r('FluffyContractReference'),
-            },
             { json: 'log', js: 'log', typ: r('FluffyContractReference') },
             { json: 'owner', js: 'owner', typ: '' },
             { json: 'sbtc', js: 'sbtc', typ: r('FluffyContractReference') },
             { json: 'sfps', js: 'sfps', typ: r('FluffyContractReference') },
+            {
+                json: 'state_proxy',
+                js: 'state_proxy',
+                typ: r('FluffyContractReference'),
+            },
         ],
         'any'
     ),

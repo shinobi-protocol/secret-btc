@@ -1,4 +1,5 @@
 use super::{ContractReference, BLOCK_SIZE};
+use crate::state_proxy;
 use cosmwasm_std::{from_binary, Binary, Querier, StdError, StdResult};
 use schemars::JsonSchema;
 use secret_toolkit::utils::{HandleCallback, Query};
@@ -11,13 +12,20 @@ pub use sfps_lib::merkle::MerkleProof;
 pub use sfps_lib::response_deliver_tx_proof::ResponseDeliverTxProof;
 pub use sfps_lib::subsequent_hashes::{CommittedHashes, HeaderHashWithHeight};
 
-#[derive(Serialize, Deserialize, JsonSchema, Clone)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InitMsg {
+    pub seed: state_proxy::client::Seed,
+    pub config: Config,
     pub max_interval: u64,
     #[schemars(with = "String")]
     #[serde(with = "serde_proto_message")]
     pub initial_header: Header,
     pub entropy: Binary,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+pub struct Config {
+    pub state_proxy: ContractReference,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, PartialEq)]
@@ -52,10 +60,11 @@ pub enum QueryMsg {
     VerifySubsequentLightBlocks {
         #[schemars(with = "String")]
         #[serde(with = "serde_proto_message")]
-        current_highest_header: Header,
+        anchor_header: Header,
+        anchor_header_index: u64,
         #[schemars(with = "Vec<String>")]
         #[serde(with = "serde_proto_message_array")]
-        light_blocks: Vec<LightBlock>,
+        following_light_blocks: Vec<LightBlock>,
         commit_flags: Vec<bool>,
     },
 }

@@ -1,9 +1,17 @@
 import { Block } from 'bitcoinjs-lib';
+import { Header } from 'secretjs/dist/protobuf_stuff/tendermint/types/types';
+import { encodeToBase64 } from '../../proto';
 import {
     ContractClient,
     ExecuteResult as GenericExecuteResult,
 } from '../ContractClient';
-import { QueryAnswerConfig, HandleMsg, QueryMsg, QueryAnswer, CommittedHashes, Header } from './types';
+import {
+    QueryAnswerConfig,
+    HandleMsg,
+    QueryMsg,
+    QueryAnswer,
+    CommittedHashes,
+} from './types';
 
 type ExecuteResult<ANSWER> = GenericExecuteResult<HandleMsg, ANSWER>;
 
@@ -15,7 +23,7 @@ class ShurikenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         gasLimit?: number
     ): Promise<ExecuteResult<void>> {
         if (!gasLimit) {
-            const baseFee = 800000;
+            const baseFee = 2000000;
             const feePerBlock = 50000;
             gasLimit = baseFee + feePerBlock * blocks.length;
         }
@@ -35,26 +43,27 @@ class ShurikenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
 
     public async proxySFPSAppendSubsequentHashes(
         committedHashes: CommittedHashes,
-        lastHeader: Header,
         gasLimit?: number
     ): Promise<ExecuteResult<void>> {
         return await this.execute(
             {
                 s_f_p_s_proxy_append_subsequent_hashes: {
                     committed_hashes: committedHashes,
-                    last_header: lastHeader
                 },
             },
-            gasLimit || 10000000,
+            gasLimit ||
+                3000000 + 80000 * committedHashes.hashes.following_hashes.length,
             () => void 0
         );
     }
 
     public async config(): Promise<QueryAnswerConfig> {
-        const result = await this.query({
-            config: {},
-        });
-        return result.config;
+        return await this.query(
+            {
+                config: {},
+            },
+            (answer) => answer.config
+        );
     }
 }
 

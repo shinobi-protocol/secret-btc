@@ -1,7 +1,7 @@
 use cosmwasm_std::{CanonicalAddr, Env, ReadonlyStorage, StdError, StdResult, Storage};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use secret_toolkit::crypto::sha_256;
+use secret_toolkit_crypto::sha_256;
 use std::convert::TryInto;
 
 type Seed = [u8; 32];

@@ -1,26 +1,49 @@
 use crate::state::{read_config, write_config};
 use cosmwasm_std::{
-    to_binary, Api, Env, Extern, HandleResponse, HandleResult, InitResponse, InitResult, Querier,
-    QueryResult, StdError, Storage,
+    to_binary, Api, Env, Extern, HandleResponse, InitResponse, InitResult, Querier, QueryResult,
+    StdError, StdResult, Storage,
 };
-use secret_toolkit::utils::{pad_handle_result, HandleCallback};
+use secret_toolkit::utils::calls::HandleCallback;
+use secret_toolkit::utils::pad_handle_result;
 use shared_types::shuriken::{HandleMsg, InitMsg, QueryAnswer, QueryMsg};
+use shared_types::state_proxy::client::{Secp256k1ApiSigner, StateProxyDeps};
 use shared_types::{bitcoin_spv, sfps, BLOCK_SIZE};
+
+const CONTRACT_LABEL: &[u8] = b"shuriken";
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
     msg: InitMsg,
 ) -> InitResult {
+    let mut deps = StateProxyDeps::init(
+        &mut deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        msg.seed.clone(),
+        msg.config.state_proxy.clone(),
+        &Secp256k1ApiSigner::new(&deps.api),
+    )?;
     write_config(&mut deps.storage, msg.config, &deps.api)?;
-    Ok(InitResponse::default())
+    Ok(InitResponse {
+        messages: deps.storage.cosmos_msgs()?,
+        log: vec![],
+    })
 }
 
 pub fn handle<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: HandleMsg,
-) -> HandleResult {
+) -> StdResult<HandleResponse> {
+    let mut deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )?;
     let config = read_config(&deps.storage, &deps.api)?;
     let messages = match msg {
         HandleMsg::BitcoinSPVAddHeaders {
@@ -37,21 +60,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
                 None,
             )?]
         }
-        HandleMsg::SFPSProxyAppendSubsequentHashes {
-            committed_hashes,
-            last_header,
-        } => {
-            let last_committed_hash = committed_hashes
-                .hashes
-                .following_hashes
-                .last()
-                .ok_or_else(|| StdError::generic_err("no committed hashes"))?
-                .clone();
-            if last_committed_hash.hash != sfps::sfps_lib::header::hash_header(&last_header) {
-                return Err(StdError::generic_err(
-                    "last_header does not match to committed_hashes",
-                ));
-            }
+        HandleMsg::SFPSProxyAppendSubsequentHashes { committed_hashes } => {
             vec![
                 sfps::HandleMsg::AppendSubsequentHashes { committed_hashes }.to_cosmos_msg(
                     config.sfps.hash,
@@ -61,6 +70,8 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             ]
         }
     };
+
+    let messages = deps.storage.add_messages_to_state_proxy_msg(messages)?;
     pad_handle_result(
         Ok(HandleResponse {
             messages,
@@ -72,6 +83,13 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
+    let deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )?;
     match msg {
         QueryMsg::Config {} => {
             let config = read_config(&deps.storage, &deps.api)?;

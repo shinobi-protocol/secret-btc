@@ -1,5 +1,11 @@
 use super::BLOCK_SIZE;
+use crate::state_proxy::client::Seed;
+use crate::CanonicalContractReference;
+use crate::Canonicalize;
+use crate::ContractReference;
+use cosmwasm_std::Api;
 use cosmwasm_std::Binary;
+use cosmwasm_std::StdResult;
 use schemars::JsonSchema;
 use secret_toolkit::utils::calls::{HandleCallback, Query};
 use serde::{Deserialize, Serialize};
@@ -11,6 +17,36 @@ pub struct Config {
     pub bitcoin_network: String,
     /// minimum block needed for tx confirmed
     pub confirmation: u8,
+
+    pub state_proxy: ContractReference,
+}
+
+/// Contract Config set at contrat init.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CanonicalConfig {
+    /// "bitcoin" | "testnet" | 'regtest"
+    pub bitcoin_network: String,
+    /// minimum block needed for tx confirmed
+    pub confirmation: u8,
+    pub state_proxy: CanonicalContractReference,
+}
+
+impl Canonicalize for Config {
+    type Canonicalized = CanonicalConfig;
+    fn into_canonical<A: Api>(self, api: &A) -> StdResult<Self::Canonicalized> {
+        Ok(CanonicalConfig {
+            bitcoin_network: self.bitcoin_network,
+            confirmation: self.confirmation,
+            state_proxy: self.state_proxy.into_canonical(api)?,
+        })
+    }
+    fn from_canonical<A: Api>(canonical: Self::Canonicalized, api: &A) -> StdResult<Self> {
+        Ok(Self {
+            bitcoin_network: canonical.bitcoin_network,
+            confirmation: canonical.confirmation,
+            state_proxy: ContractReference::from_canonical(canonical.state_proxy, api)?,
+        })
+    }
 }
 
 // Bitcoin Merkle Proof Std Message
@@ -31,6 +67,8 @@ pub struct InitMsg {
     pub bitcoin_network: String,
     pub confirmation: u8,
     pub initial_header: Option<InitialHeader>,
+    pub state_proxy: ContractReference,
+    pub seed: Seed,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Clone, Debug)]

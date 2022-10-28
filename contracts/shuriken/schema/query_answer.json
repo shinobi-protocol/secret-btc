@@ -19,13 +19,17 @@
       "type": "object",
       "required": [
         "bitcoin_spv",
-        "sfps"
+        "sfps",
+        "state_proxy"
       ],
       "properties": {
         "bitcoin_spv": {
           "$ref": "#/definitions/ContractReference"
         },
         "sfps": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "state_proxy": {
           "$ref": "#/definitions/ContractReference"
         }
       }

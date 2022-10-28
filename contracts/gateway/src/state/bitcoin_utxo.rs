@@ -9,7 +9,8 @@ use cosmwasm_std::{CanonicalAddr, ReadonlyStorage, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use rand::Rng;
 use secret_toolkit::crypto::sha_256;
-use secret_toolkit::storage::{TypedStore, TypedStoreMut};
+use secret_toolkit::serialization::Bincode2;
+use secret_toolkit::storage::Item;
 use serde::{Deserialize, Serialize};
 use shared_types::gateway::RequestKey;
 
@@ -97,8 +98,7 @@ pub fn read_release_request_utxo<S: ReadonlyStorage>(
     request_key: &RequestKey,
 ) -> Result<Option<RequestedUtxo>, Error> {
     let storage = ReadonlyPrefixedStorage::new(PREFIX_RELEASE_REQUESTS, storage);
-    let storage = TypedStore::attach(&storage);
-    Ok(storage.may_load(request_key.as_bytes())?)
+    Ok(Item::<RequestedUtxo, Bincode2>::new(request_key.as_bytes()).may_load(&storage)?)
 }
 
 pub fn write_release_request_utxo<S: Storage>(
@@ -108,7 +108,6 @@ pub fn write_release_request_utxo<S: Storage>(
     utxo: Utxo,
 ) -> Result<(), Error> {
     let mut storage = PrefixedStorage::new(PREFIX_RELEASE_REQUESTS, storage);
-    let mut storage = TypedStoreMut::attach(&mut storage);
-    storage.store(request_key.as_bytes(), &RequestedUtxo { utxo, value })?;
-    Ok(())
+    Ok(Item::<RequestedUtxo, Bincode2>::new(request_key.as_bytes())
+        .save(&mut storage, &RequestedUtxo { utxo, value })?)
 }

@@ -580,23 +580,23 @@ export interface QueryMsgTransferHistory {
 }
 
 export interface WithPermit {
-    permit: Permit;
+    permit: PermitForTokenPermissions;
     query: QueryWithPermit;
 }
 
-export interface Permit {
-    params: PermitParams;
+export interface PermitForTokenPermissions {
+    params: PermitParamsForTokenPermissions;
     signature: PermitSignature;
 }
 
-export interface PermitParams {
+export interface PermitParamsForTokenPermissions {
     allowed_tokens: string[];
     chain_id: string;
-    permissions: Permission[];
+    permissions: TokenPermissions[];
     permit_name: string;
 }
 
-export enum Permission {
+export enum TokenPermissions {
     Allowance = 'allowance',
     Balance = 'balance',
     History = 'history',
@@ -1825,23 +1825,35 @@ const typeMap: any = {
     ),
     WithPermit: o(
         [
-            { json: 'permit', js: 'permit', typ: r('Permit') },
+            {
+                json: 'permit',
+                js: 'permit',
+                typ: r('PermitForTokenPermissions'),
+            },
             { json: 'query', js: 'query', typ: r('QueryWithPermit') },
         ],
         'any'
     ),
-    Permit: o(
+    PermitForTokenPermissions: o(
         [
-            { json: 'params', js: 'params', typ: r('PermitParams') },
+            {
+                json: 'params',
+                js: 'params',
+                typ: r('PermitParamsForTokenPermissions'),
+            },
             { json: 'signature', js: 'signature', typ: r('PermitSignature') },
         ],
         'any'
     ),
-    PermitParams: o(
+    PermitParamsForTokenPermissions: o(
         [
             { json: 'allowed_tokens', js: 'allowed_tokens', typ: a('') },
             { json: 'chain_id', js: 'chain_id', typ: '' },
-            { json: 'permissions', js: 'permissions', typ: a(r('Permission')) },
+            {
+                json: 'permissions',
+                js: 'permissions',
+                typ: a(r('TokenPermissions')),
+            },
             { json: 'permit_name', js: 'permit_name', typ: '' },
         ],
         'any'
@@ -1904,5 +1916,5 @@ const typeMap: any = {
     ),
     ResponseStatus: ['failure', 'success'],
     ContractStatusLevel: ['normal_run', 'stop_all', 'stop_all_but_redeems'],
-    Permission: ['allowance', 'balance', 'history', 'owner'],
+    TokenPermissions: ['allowance', 'balance', 'history', 'owner'],
 };

@@ -27,7 +27,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -53,6 +53,18 @@ jobs:
           command: run
           args: --example schema --locked --manifest-path=contracts/gateway/Cargo.toml
 
+      - name: Optimize contract.wasm
+        working-directory: ./contracts/gateway
+        run: npx -y -- wasm-opt -Os ./target/wasm32-unknown-unknown/release/*.wasm -o ./contract.wasm
+
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - uses: EndBug/add-and-commit@v9
+        with:
+          message: Apply contracts/gateway/contract.wasm optimization
+          add: contracts/gateway/contract.wasm
+
   gateway-lints:
     runs-on: ubuntu-latest
     steps:
@@ -63,7 +75,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           override: true
           components: rustfmt, clippy
 
@@ -83,7 +95,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -109,6 +121,18 @@ jobs:
           command: run
           args: --example schema --locked --manifest-path=contracts/bitcoin_spv/Cargo.toml
 
+      - name: Optimize contract.wasm
+        working-directory: ./contracts/bitcoin_spv
+        run: npx -y -- wasm-opt -Os ./target/wasm32-unknown-unknown/release/*.wasm -o ./contract.wasm
+
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - uses: EndBug/add-and-commit@v9
+        with:
+          message: Apply contracts/bitcoin_spv/contract.wasm optimization
+          add: contracts/bitcoin_spv/contract.wasm
+
   bitcoin-spv-lints:
     runs-on: ubuntu-latest
     steps:
@@ -119,7 +143,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           override: true
           components: rustfmt, clippy
 
@@ -139,7 +163,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -164,6 +188,18 @@ jobs:
         with:
           command: run
           args: --example schema --locked --manifest-path=contracts/multisig/Cargo.toml
+      
+      - name: Optimize contract.wasm
+        working-directory: ./contracts/multisig
+        run: npx -y -- wasm-opt -Os ./target/wasm32-unknown-unknown/release/*.wasm -o ./contract.wasm
+
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - uses: EndBug/add-and-commit@v9
+        with:
+          message: Apply contracts/multisig/contract.wasm optimization
+          add: contracts/multisig/contract.wasm
 
   multisig-lints:
     runs-on: ubuntu-latest
@@ -175,7 +211,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           override: true
           components: rustfmt, clippy
 
@@ -195,7 +231,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -221,6 +257,18 @@ jobs:
           command: run
           args: --example schema --locked --manifest-path=contracts/sfps/Cargo.toml
 
+      - name: Optimize contract.wasm
+        working-directory: ./contracts/sfps
+        run: npx -y -- wasm-opt -Os ./target/wasm32-unknown-unknown/release/*.wasm -o ./contract.wasm
+
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - uses: EndBug/add-and-commit@v9
+        with:
+          message: Apply contracts/sfps/contract.wasm optimization
+          add: contracts/sfps/contract.wasm
+
   sfps-lints:
     runs-on: ubuntu-latest
     steps:
@@ -231,7 +279,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           override: true
           components: rustfmt, clippy
 
@@ -240,118 +288,6 @@ jobs:
         with:
           command: fmt
           args: --manifest-path=contracts/sfps/Cargo.toml -- --check --config-path=contracts/sfps/rustfmt.toml
-
-  finance-admin-v1-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.60.0
-          target: wasm32-unknown-unknown
-          override: true
-
-      - name: Run unit tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --locked --manifest-path=contracts/finance_admin_v1/Cargo.toml
-        env:
-          RUST_BACKTRACE: 1
-
-      - name: Compile WASM contract
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --target wasm32-unknown-unknown --locked --manifest-path=contracts/finance_admin_v1/Cargo.toml
-        env:
-          RUSTFLAGS: "-C link-arg=-s"
-
-      - name: Generate Schema
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --example schema --locked --manifest-path=contracts/finance_admin_v1/Cargo.toml
-
-  finance-admin-v1-lints:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.60.0
-          override: true
-          components: rustfmt, clippy
-
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --manifest-path=contracts/finance_admin_v1/Cargo.toml -- --check --config-path=contracts/finance_admin_v1/rustfmt.toml
-
-  treasury-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.60.0
-          target: wasm32-unknown-unknown
-          override: true
-
-      - name: Run unit tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --locked --manifest-path=contracts/treasury/Cargo.toml
-        env:
-          RUST_BACKTRACE: 1
-
-      - name: Compile WASM contract
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --target wasm32-unknown-unknown --locked --manifest-path=contracts/treasury/Cargo.toml
-        env:
-          RUSTFLAGS: "-C link-arg=-s"
-
-      - name: Generate Schema
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --example schema --locked --manifest-path=contracts/treasury/Cargo.toml
-
-  treasury-lints:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.60.0
-          override: true
-          components: rustfmt, clippy
-
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --manifest-path=contracts/treasury/Cargo.toml -- --check --config-path=contracts/treasury/rustfmt.toml
 
   shuriken-test:
     runs-on: ubuntu-latest
@@ -363,7 +299,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -389,6 +325,18 @@ jobs:
           command: run
           args: --example schema --locked --manifest-path=contracts/shuriken/Cargo.toml
 
+      - name: Optimize contract.wasm
+        working-directory: ./contracts/shuriken
+        run: npx -y -- wasm-opt -Os ./target/wasm32-unknown-unknown/release/*.wasm -o ./contract.wasm
+
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - uses: EndBug/add-and-commit@v9
+        with:
+          message: Apply contracts/shuriken/contract.wasm optimization
+          add: contracts/shuriken/contract.wasm
+
   shuriken-lints:
     runs-on: ubuntu-latest
     steps:
@@ -399,7 +347,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           override: true
           components: rustfmt, clippy
 
@@ -419,7 +367,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -445,6 +393,18 @@ jobs:
           command: run
           args: --example schema --locked --manifest-path=contracts/log/Cargo.toml
 
+      - name: Optimize contract.wasm
+        working-directory: ./contracts/log
+        run: npx -y -- wasm-opt -Os ./target/wasm32-unknown-unknown/release/*.wasm -o ./contract.wasm
+
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - uses: EndBug/add-and-commit@v9
+        with:
+          message: Apply contracts/log/contract.wasm optimization
+          add: contracts/log/contract.wasm
+
   log-lints:
     runs-on: ubuntu-latest
     steps:
@@ -455,7 +415,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           override: true
           components: rustfmt, clippy
 
@@ -464,6 +424,74 @@ jobs:
         with:
           command: fmt
           args: --manifest-path=contracts/log/Cargo.toml -- --check --config-path=contracts/log/rustfmt.toml
+
+  vesting-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.63.0
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --locked --manifest-path=contracts/vesting/Cargo.toml
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Compile WASM contract
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target wasm32-unknown-unknown --locked --manifest-path=contracts/vesting/Cargo.toml
+        env:
+          RUSTFLAGS: "-C link-arg=-s"
+
+      - name: Generate Schema
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --example schema --locked --manifest-path=contracts/vesting/Cargo.toml
+
+      - name: Optimize contract.wasm
+        working-directory: ./contracts/vesting
+        run: npx -y -- wasm-opt -Os ./target/wasm32-unknown-unknown/release/*.wasm -o ./contract.wasm
+
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - uses: EndBug/add-and-commit@v9
+        with:
+          message: Apply contracts/vesting/contract.wasm optimization
+          add: contracts/vesting/contract.wasm
+
+  vesting-lints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.63.0
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path=contracts/vesting/Cargo.toml -- --check --config-path=contracts/vesting/rustfmt.toml
 
   bitcoin-header-chain-test:
     runs-on: ubuntu-latest
@@ -475,7 +503,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -497,7 +525,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -519,7 +547,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.60.0
+          toolchain: 1.63.0
           target: wasm32-unknown-unknown
           override: true
 

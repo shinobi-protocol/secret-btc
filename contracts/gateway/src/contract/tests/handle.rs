@@ -12,10 +12,13 @@ use bitcoin::hash_types::Txid;
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Address, Network, PrivateKey, Transaction, TxOut};
+use contract_test_utils::contract_runner::ContractRunner;
+use contract_test_utils::mock_timestamp;
 use cosmwasm_std::{from_binary, to_binary, Api, Binary, StdError, WasmQuery};
 use rand::{thread_rng, Rng};
 use secret_toolkit::{snip20, utils::HandleCallback};
 use shared_types::gateway::*;
+use shared_types::state_proxy::client::{Secp256k1ApiSigner, StateProxyDeps};
 use shared_types::{bitcoin_spv, log, sfps, BLOCK_SIZE};
 use std::string::ToString;
 
@@ -25,29 +28,36 @@ pub struct TokenInfoResponse {
     token_info: snip20::TokenInfo,
 }
 
+//let handle_wrapper =
+
 #[test]
 fn test_request_mint_address_sanity() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
     //  handle
     let handle_msg = HandleMsg::RequestMintAddress {
         entropy: Binary::from(b"entropy"),
     };
 
     // assert response
-    let handle_response = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg).unwrap();
+    let handle_response = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("bob", &[]),
+        handle_msg,
+    )
+    .unwrap();
     let mint_address: String = match from_binary(&handle_response.data.unwrap()).unwrap() {
         HandleAnswer::RequestMintAddress { mint_address } => mint_address,
         _ => panic!("Unexpected"),
     };
-    assert_eq!(mint_address, "bcrt1q7wn8f7qt9sllujdlukazyhh87uyva0xq0s5rmt");
-    assert_eq!(handle_response.messages.len(), 1);
+    assert_eq!(mint_address, "bcrt1q0r489mvjxujmd2ufss7av3ch2p3x0y856yt3y7");
+    assert_eq!(handle_response.messages.len(), 2);
     assert_eq!(
-        handle_response.messages[0],
+        handle_response.messages[1],
         log::HandleMsg::AddEvents {
             events: vec![(
                 "bob".into(),
                 log::Event::MintStarted(log::event::MintStartedData {
-                    time: helper::mock_timestamp() as u64,
+                    time: contract_test_utils::mock_timestamp() as u64,
                     address: mint_address.to_string(),
                 }),
             )],
@@ -56,14 +66,23 @@ fn test_request_mint_address_sanity() {
         .unwrap()
     );
 
-    let canonical_addr = deps.api.canonical_address(&"bob".into()).unwrap();
+    let canonical_addr = context.mock_api.canonical_address(&"bob".into()).unwrap();
     // assert states
+    let deps = context.client_deps();
+    let deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
     let mint_key = read_mint_key(&deps.storage, &canonical_addr, Network::Regtest)
         .unwrap()
         .unwrap();
     assert_eq!(
         format!("{:x}", mint_key.key),
-        "5f23067487496469d03dfd56c8c041ad2855977cbdb5b9c8ef6ff383cac21f63"
+        "11e9035b2dd043fca629844208d7b0fba5a2beccfdcaa43607fc8853c5e06e3b"
     );
     let address = Address::p2wpkh(&mint_key.public_key(), mint_key.network).unwrap();
     assert_eq!(address.to_string(), mint_address);
@@ -71,23 +90,29 @@ fn test_request_mint_address_sanity() {
 
 #[test]
 fn test_suspend_request_mint_address() {
-    let mut deps = init_helper();
-    //  handle
-    let handle_msg = HandleMsg::RequestMintAddress {
-        entropy: Binary::from(b"entropy"),
-    };
-    set_suspension_switch(
-        &mut deps.storage,
-        &SuspensionSwitch {
-            request_mint_address: true,
-            verify_mint_tx: false,
-            release_incorrect_amount_btc: false,
-            request_release_btc: false,
-            claim_release_btc: false,
+    let mut context = init_helper();
+    GatewayRunner::run_handle(
+        &mut context,
+        mock_env("owner", &[]),
+        HandleMsg::SetSuspensionSwitch {
+            suspension_switch: SuspensionSwitch {
+                request_mint_address: true,
+                verify_mint_tx: false,
+                release_incorrect_amount_btc: false,
+                request_release_btc: false,
+                claim_release_btc: false,
+            },
         },
     )
     .unwrap();
-    let err = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg).unwrap_err();
+    let err = GatewayRunner::run_handle(
+        &mut context,
+        mock_env("bob", &[]),
+        HandleMsg::RequestMintAddress {
+            entropy: Binary::from(b"entropy"),
+        },
+    )
+    .unwrap_err();
     assert_eq!(
         err.to_string(),
         "Generic error: contract error request mint address is being suspended"
@@ -96,35 +121,43 @@ fn test_suspend_request_mint_address() {
 
 #[test]
 fn test_request_mint_address_twice_with_same_entropy() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
 
     // request 1
     let handle_msg = HandleMsg::RequestMintAddress {
         entropy: Binary::from(b"entropy"),
     };
-    let handle_result = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg);
+    let handle_result = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("bob", &[]),
+        handle_msg,
+    );
     let mint_address: String = match from_binary(&handle_result.unwrap().data.unwrap()).unwrap() {
         HandleAnswer::RequestMintAddress { mint_address } => mint_address,
         _ => panic!("Unexpected"),
     };
-    assert_eq!(mint_address, "bcrt1q7wn8f7qt9sllujdlukazyhh87uyva0xq0s5rmt");
+    assert_eq!(mint_address, "bcrt1q0r489mvjxujmd2ufss7av3ch2p3x0y856yt3y7");
 
     // request 2
     let handle_msg = HandleMsg::RequestMintAddress {
         entropy: Binary::from(b"entropy"),
     };
-    let handle_result = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg);
+    let handle_result = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("bob", &[]),
+        handle_msg,
+    );
     let mint_address: String = match from_binary(&handle_result.unwrap().data.unwrap()).unwrap() {
         HandleAnswer::RequestMintAddress { mint_address } => mint_address,
         _ => panic!("Unexpected"),
     };
-    assert_eq!(mint_address, "bcrt1q85q7xyyy86uw2zm2s2ld6j307p60hmfx4eamx9");
+    assert_eq!(mint_address, "bcrt1qstdvzcekutkmy8qtzlt3e7xxh60v6p3fy29f9z");
 }
 
 #[test]
 fn test_request_mint_address_to_same_state_from_different_account() {
-    let mut deps_bob = init_helper();
-    let mut deps_lebron = init_helper();
+    let mut bob_context = init_helper();
+    let mut lebron_context = init_helper();
 
     let entropy = Binary::from(b"entropy");
 
@@ -132,33 +165,46 @@ fn test_request_mint_address_to_same_state_from_different_account() {
     let handle_msg = HandleMsg::RequestMintAddress {
         entropy: entropy.clone(),
     };
-    let handle_result = handle(&mut deps_bob, helper::mock_env("bob", &[]), handle_msg);
-    let mint_address: String = match from_binary(&handle_result.unwrap().data.unwrap()).unwrap() {
-        HandleAnswer::RequestMintAddress { mint_address } => mint_address,
-        _ => panic!("Unexpected"),
-    };
-    assert_eq!(mint_address, "bcrt1q7wn8f7qt9sllujdlukazyhh87uyva0xq0s5rmt");
-
-    // from lebron
-    let handle_msg = HandleMsg::RequestMintAddress { entropy };
-    let handle_result = handle(
-        &mut deps_lebron,
-        helper::mock_env("lebron", &[]),
+    let handle_result = GatewayRunner::run_handle(
+        &mut bob_context,
+        contract_test_utils::mock_env("bob", &[]),
         handle_msg,
     );
     let mint_address: String = match from_binary(&handle_result.unwrap().data.unwrap()).unwrap() {
         HandleAnswer::RequestMintAddress { mint_address } => mint_address,
         _ => panic!("Unexpected"),
     };
-    assert_eq!(mint_address, "bcrt1qcqwd80unkc0gqjzwa5vn5rxhfn6ugck7k82av4");
+    assert_eq!(mint_address, "bcrt1q0r489mvjxujmd2ufss7av3ch2p3x0y856yt3y7");
+
+    // from lebron
+    let handle_msg = HandleMsg::RequestMintAddress { entropy };
+    let handle_result = GatewayRunner::run_handle(
+        &mut lebron_context,
+        contract_test_utils::mock_env("lebron", &[]),
+        handle_msg,
+    );
+    let mint_address: String = match from_binary(&handle_result.unwrap().data.unwrap()).unwrap() {
+        HandleAnswer::RequestMintAddress { mint_address } => mint_address,
+        _ => panic!("Unexpected"),
+    };
+    assert_eq!(mint_address, "bcrt1qrp420qleq0pvvk7pal4v3hm63tnjj7upqqdjuw");
 }
 
 #[test]
 fn test_verify_mint_tx_sanity() {
     for tx_value in [100000000, 10000000] {
-        let mut deps = init_helper();
-        let config = read_config(&deps.storage, &deps.api).unwrap();
-        let canonical_minter = deps.api.canonical_address(&"minter".into()).unwrap();
+        let mut context = init_helper();
+        let config = match from_binary(
+            &GatewayRunner::run_query(&mut context, QueryMsg::Config {}).unwrap(),
+        )
+        .unwrap()
+        {
+            QueryAnswer::Config(config) => config,
+            _ => unreachable!(),
+        };
+        let canonical_minter = contract_test_utils::mock_api()
+            .canonical_address(&"minter".into())
+            .unwrap();
 
         // create random mint key
         let mint_key = PrivateKey {
@@ -168,9 +214,19 @@ fn test_verify_mint_tx_sanity() {
         };
         let mint_address = Address::p2wpkh(&mint_key.public_key(), mint_key.network).unwrap();
 
+        let deps = context.client_deps();
+        let mut proxy_deps = StateProxyDeps::restore(
+            &deps.storage,
+            &deps.api,
+            &deps.querier,
+            CONTRACT_LABEL,
+            &Secp256k1ApiSigner::new(&deps.api),
+        )
+        .unwrap();
         // set mint key to storage
-        write_mint_key(&mut deps.storage, &canonical_minter, &mint_key);
-
+        write_mint_key(&mut proxy_deps.storage, &canonical_minter, &mint_key);
+        let msg = proxy_deps.storage.cosmos_msgs().unwrap();
+        context.exec_state_contract_messages(&msg);
         let mint_tx = Transaction {
             version: 1,
             lock_time: 0,
@@ -182,7 +238,7 @@ fn test_verify_mint_tx_sanity() {
         };
         let bin_mint_tx = Binary::from(serialize(&mint_tx));
 
-        deps.querier.add_case(
+        context.query_cases.add_case(
             WasmQuery::Smart {
                 msg: to_padded_binary(&snip20::QueryMsg::TokenInfo {}).unwrap(),
                 contract_addr: config.sbtc.address,
@@ -197,7 +253,7 @@ fn test_verify_mint_tx_sanity() {
                 },
             },
         );
-        deps.querier.add_case(
+        context.query_cases.add_case(
             WasmQuery::Smart {
                 msg: to_padded_binary(&bitcoin_spv::QueryMsg::VerifyMerkleProof {
                     height: 1,
@@ -217,10 +273,15 @@ fn test_verify_mint_tx_sanity() {
             tx: Binary::from(serialize(&mint_tx)),
             merkle_proof: bitcoin_spv::MerkleProofMsg::default(),
         };
-        let handle_response = handle(&mut deps, helper::mock_env("minter", &[]), msg).unwrap();
-        assert_eq!(handle_response.messages.len(), 2);
+        let handle_response = GatewayRunner::run_handle(
+            &mut context,
+            contract_test_utils::mock_env("minter", &[]),
+            msg,
+        )
+        .unwrap();
+        assert_eq!(handle_response.messages.len(), 3);
         assert_eq!(
-            handle_response.messages[0],
+            handle_response.messages[1],
             snip20::mint_msg(
                 "minter".into(),
                 tx_value.into(),
@@ -233,12 +294,12 @@ fn test_verify_mint_tx_sanity() {
             .unwrap()
         );
         assert_eq!(
-            handle_response.messages[1],
+            handle_response.messages[2],
             log::HandleMsg::AddEvents {
                 events: vec![(
                     "minter".into(),
                     log::Event::MintCompleted(log::event::MintCompletedData {
-                        time: helper::mock_timestamp() as u64,
+                        time: contract_test_utils::mock_timestamp() as u64,
                         address: mint_address.to_string(),
                         amount: tx_value.into(),
                         txid: mint_tx.txid().to_string()
@@ -250,14 +311,23 @@ fn test_verify_mint_tx_sanity() {
         );
 
         // assert mint key was removed
+        let deps = context.client_deps();
+        let mut proxy_deps = StateProxyDeps::restore(
+            &deps.storage,
+            &deps.api,
+            &deps.querier,
+            CONTRACT_LABEL,
+            &Secp256k1ApiSigner::new(&deps.api),
+        )
+        .unwrap();
         assert!(
-            read_mint_key(&deps.storage, &canonical_minter, Network::Regtest)
+            read_mint_key(&proxy_deps.storage, &canonical_minter, Network::Regtest)
                 .unwrap()
                 .is_none()
         );
 
         // assert utxo stack
-        let utxo = UtxoQueue::from_storage(&mut deps.storage, tx_value)
+        let utxo = UtxoQueue::from_storage(&mut proxy_deps.storage, tx_value)
             .dequeue()
             .unwrap()
             .unwrap();
@@ -274,25 +344,33 @@ fn test_verify_mint_tx_sanity() {
 
 #[test]
 fn test_suspend_verify_mint_tx() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
     //  handle
     let handle_msg = HandleMsg::VerifyMintTx {
         height: 0,
         tx: Binary::from(&[]),
         merkle_proof: bitcoin_spv::MerkleProofMsg::default(),
     };
-    set_suspension_switch(
-        &mut deps.storage,
-        &SuspensionSwitch {
-            request_mint_address: false,
-            verify_mint_tx: true,
-            release_incorrect_amount_btc: false,
-            request_release_btc: false,
-            claim_release_btc: false,
+    GatewayRunner::run_handle(
+        &mut context,
+        mock_env("owner", &[]),
+        HandleMsg::SetSuspensionSwitch {
+            suspension_switch: SuspensionSwitch {
+                request_mint_address: false,
+                verify_mint_tx: true,
+                release_incorrect_amount_btc: false,
+                request_release_btc: false,
+                claim_release_btc: false,
+            },
         },
     )
     .unwrap();
-    let err = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg).unwrap_err();
+    let err = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("bob", &[]),
+        handle_msg,
+    )
+    .unwrap_err();
     assert_eq!(
         err.to_string(),
         "Generic error: contract error verify mint tx is being suspended"
@@ -301,9 +379,17 @@ fn test_suspend_verify_mint_tx() {
 
 #[test]
 fn test_verify_mint_tx_merkle_proof_verification_failure() {
-    let mut deps = init_helper();
-    let canonical_minter = deps.api.canonical_address(&"minter".into()).unwrap();
-    let config = read_config(&deps.storage, &deps.api).unwrap();
+    let mut context = init_helper();
+    let canonical_minter = contract_test_utils::mock_api()
+        .canonical_address(&"minter".into())
+        .unwrap();
+    let config =
+        match from_binary(&GatewayRunner::run_query(&mut context, QueryMsg::Config {}).unwrap())
+            .unwrap()
+        {
+            QueryAnswer::Config(config) => config,
+            _ => unreachable!(),
+        };
     // create random mint key
     let mint_key = PrivateKey {
         compressed: true,
@@ -313,7 +399,19 @@ fn test_verify_mint_tx_merkle_proof_verification_failure() {
     let mint_address = Address::p2wpkh(&mint_key.public_key(), mint_key.network).unwrap();
 
     // set mint key to storage
-    write_mint_key(&mut deps.storage, &canonical_minter, &mint_key);
+    let deps = context.client_deps();
+    let mut proxy_deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
+    // set mint key to storage
+    write_mint_key(&mut proxy_deps.storage, &canonical_minter, &mint_key);
+    let msg = proxy_deps.storage.cosmos_msgs().unwrap();
+    context.exec_state_contract_messages(&msg);
 
     // mint tx sample
     let mint_tx = Transaction {
@@ -327,7 +425,7 @@ fn test_verify_mint_tx_merkle_proof_verification_failure() {
     };
     let bin_mint_tx = Binary::from(serialize(&mint_tx));
 
-    deps.querier.add_case(
+    context.query_cases.add_case(
         WasmQuery::Smart {
             msg: to_padded_binary(&bitcoin_spv::QueryMsg::VerifyMerkleProof {
                 height: 1,
@@ -341,7 +439,7 @@ fn test_verify_mint_tx_merkle_proof_verification_failure() {
         bitcoin_spv::QueryAnswer::VerifyMerkleProof { success: false },
     );
 
-    deps.querier.add_error_case(
+    context.query_cases.add_error_case(
         WasmQuery::Smart {
             msg: to_padded_binary(&bitcoin_spv::QueryMsg::VerifyMerkleProof {
                 height: 2,
@@ -366,7 +464,12 @@ fn test_verify_mint_tx_merkle_proof_verification_failure() {
         tx: bin_mint_tx.clone(),
         merkle_proof: bitcoin_spv::MerkleProofMsg::default(),
     };
-    let err = handle(&mut deps, helper::mock_env("minter", &[]), msg).unwrap_err();
+    let err = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("minter", &[]),
+        msg,
+    )
+    .unwrap_err();
     assert_eq!(
         err,
         StdError::generic_err("contract error merkle proof verification failed")
@@ -378,15 +481,28 @@ fn test_verify_mint_tx_merkle_proof_verification_failure() {
         tx: bin_mint_tx,
         merkle_proof: bitcoin_spv::MerkleProofMsg::default(),
     };
-    let err = handle(&mut deps, helper::mock_env("minter", &[]), msg).unwrap_err();
+    let err = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("minter", &[]),
+        msg,
+    )
+    .unwrap_err();
     assert_eq!(err, StdError::generic_err("bitcoin spv error"));
 }
 
 #[test]
 fn test_verify_mint_tx_no_output() {
-    let mut deps = init_helper();
-    let canonical_minter = deps.api.canonical_address(&"minter".into()).unwrap();
-    let config = read_config(&deps.storage, &deps.api).unwrap();
+    let mut context = init_helper();
+    let canonical_minter = contract_test_utils::mock_api()
+        .canonical_address(&"minter".into())
+        .unwrap();
+    let config =
+        match from_binary(&GatewayRunner::run_query(&mut context, QueryMsg::Config {}).unwrap())
+            .unwrap()
+        {
+            QueryAnswer::Config(config) => config,
+            _ => unreachable!(),
+        };
 
     // create random mint key
     let mint_key = PrivateKey {
@@ -395,8 +511,19 @@ fn test_verify_mint_tx_no_output() {
         key: SecretKey::random(&mut thread_rng()),
     };
 
+    let deps = context.client_deps();
+    let mut proxy_deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
     // set mint key to storage
-    write_mint_key(&mut deps.storage, &canonical_minter, &mint_key);
+    write_mint_key(&mut proxy_deps.storage, &canonical_minter, &mint_key);
+    let msg = proxy_deps.storage.cosmos_msgs().unwrap();
+    context.exec_state_contract_messages(&msg);
 
     let mint_tx  =
         // mint tx
@@ -408,7 +535,7 @@ fn test_verify_mint_tx_no_output() {
         };
     let bin_mint_tx = Binary::from(serialize(&mint_tx));
 
-    deps.querier.add_case(
+    context.query_cases.add_case(
         WasmQuery::Smart {
             msg: to_padded_binary(&bitcoin_spv::QueryMsg::VerifyMerkleProof {
                 height: 1,
@@ -427,7 +554,12 @@ fn test_verify_mint_tx_no_output() {
         tx: bin_mint_tx,
         merkle_proof: bitcoin_spv::MerkleProofMsg::default(),
     };
-    let err = handle(&mut deps, helper::mock_env("minter", &[]), msg).unwrap_err();
+    let err = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("minter", &[]),
+        msg,
+    )
+    .unwrap_err();
     assert_eq!(
         err,
         StdError::generic_err("contract error no valid tx output")
@@ -436,9 +568,17 @@ fn test_verify_mint_tx_no_output() {
 
 #[test]
 fn test_verify_mint_tx_invalid_mint_address() {
-    let mut deps = init_helper();
-    let canonical_minter = deps.api.canonical_address(&"minter".into()).unwrap();
-    let config = read_config(&deps.storage, &deps.api).unwrap();
+    let mut context = init_helper();
+    let canonical_minter = contract_test_utils::mock_api()
+        .canonical_address(&"minter".into())
+        .unwrap();
+    let config =
+        match from_binary(&GatewayRunner::run_query(&mut context, QueryMsg::Config {}).unwrap())
+            .unwrap()
+        {
+            QueryAnswer::Config(config) => config,
+            _ => unreachable!(),
+        };
 
     // create random mint key
     let mint_key = PrivateKey {
@@ -447,8 +587,20 @@ fn test_verify_mint_tx_invalid_mint_address() {
         key: SecretKey::random(&mut thread_rng()),
     };
 
+    let deps = context.client_deps();
+    let mut proxy_deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
+
     // set mint key to storage
-    write_mint_key(&mut deps.storage, &canonical_minter, &mint_key);
+    write_mint_key(&mut proxy_deps.storage, &canonical_minter, &mint_key);
+    let msg = proxy_deps.storage.cosmos_msgs().unwrap();
+    context.exec_state_contract_messages(&msg);
 
     let invalid_mint_key = PrivateKey {
         compressed: true,
@@ -470,7 +622,7 @@ fn test_verify_mint_tx_invalid_mint_address() {
 
     let bin_mint_tx = Binary::from(serialize(&mint_tx));
 
-    deps.querier.add_case(
+    context.query_cases.add_case(
         WasmQuery::Smart {
             msg: to_padded_binary(&bitcoin_spv::QueryMsg::VerifyMerkleProof {
                 height: 1,
@@ -489,7 +641,12 @@ fn test_verify_mint_tx_invalid_mint_address() {
         tx: bin_mint_tx,
         merkle_proof: bitcoin_spv::MerkleProofMsg::default(),
     };
-    let err = handle(&mut deps, helper::mock_env("minter", &[]), msg).unwrap_err();
+    let err = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("minter", &[]),
+        msg,
+    )
+    .unwrap_err();
     assert_eq!(
         err,
         StdError::generic_err("contract error no valid tx output")
@@ -498,9 +655,17 @@ fn test_verify_mint_tx_invalid_mint_address() {
 
 #[test]
 fn test_verify_mint_tx_invalid_tx_value() {
-    let mut deps = init_helper();
-    let canonical_minter = deps.api.canonical_address(&"minter".into()).unwrap();
-    let config = read_config(&deps.storage, &deps.api).unwrap();
+    let mut context = init_helper();
+    let canonical_minter = contract_test_utils::mock_api()
+        .canonical_address(&"minter".into())
+        .unwrap();
+    let config =
+        match from_binary(&GatewayRunner::run_query(&mut context, QueryMsg::Config {}).unwrap())
+            .unwrap()
+        {
+            QueryAnswer::Config(config) => config,
+            _ => unreachable!(),
+        };
 
     // create random mint key
     let mint_key = PrivateKey {
@@ -509,8 +674,19 @@ fn test_verify_mint_tx_invalid_tx_value() {
         key: SecretKey::random(&mut thread_rng()),
     };
 
+    let deps = context.client_deps();
+    let mut proxy_deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
     // set mint key to storage
-    write_mint_key(&mut deps.storage, &canonical_minter, &mint_key);
+    write_mint_key(&mut proxy_deps.storage, &canonical_minter, &mint_key);
+    let msg = proxy_deps.storage.cosmos_msgs().unwrap();
+    context.exec_state_contract_messages(&msg);
 
     let invalid_mint_key = PrivateKey {
         compressed: true,
@@ -532,7 +708,7 @@ fn test_verify_mint_tx_invalid_tx_value() {
 
     let bin_mint_tx = Binary::from(serialize(&mint_tx));
 
-    deps.querier.add_case(
+    context.query_cases.add_case(
         WasmQuery::Smart {
             msg: to_padded_binary(&bitcoin_spv::QueryMsg::VerifyMerkleProof {
                 height: 1,
@@ -551,7 +727,12 @@ fn test_verify_mint_tx_invalid_tx_value() {
         tx: bin_mint_tx,
         merkle_proof: bitcoin_spv::MerkleProofMsg::default(),
     };
-    let err = handle(&mut deps, helper::mock_env("minter", &[]), msg).unwrap_err();
+    let err = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("minter", &[]),
+        msg,
+    )
+    .unwrap_err();
     assert_eq!(
         err,
         StdError::generic_err("contract error no valid tx output")
@@ -560,9 +741,17 @@ fn test_verify_mint_tx_invalid_tx_value() {
 
 #[test]
 fn test_release_incorrect_amount_btc() {
-    let mut deps = init_helper();
-    let canonical_minter = deps.api.canonical_address(&"minter".into()).unwrap();
-    let config = read_config(&deps.storage, &deps.api).unwrap();
+    let mut context = init_helper();
+    let canonical_minter = contract_test_utils::mock_api()
+        .canonical_address(&"minter".into())
+        .unwrap();
+    let config =
+        match from_binary(&GatewayRunner::run_query(&mut context, QueryMsg::Config {}).unwrap())
+            .unwrap()
+        {
+            QueryAnswer::Config(config) => config,
+            _ => unreachable!(),
+        };
 
     // create random mint key
     let mint_key = PrivateKey {
@@ -572,8 +761,19 @@ fn test_release_incorrect_amount_btc() {
     };
     let mint_address = Address::p2wpkh(&mint_key.public_key(), mint_key.network).unwrap();
 
+    let deps = context.client_deps();
+    let mut proxy_deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
     // set mint key to storage
-    write_mint_key(&mut deps.storage, &canonical_minter, &mint_key);
+    write_mint_key(&mut proxy_deps.storage, &canonical_minter, &mint_key);
+    let msg = proxy_deps.storage.cosmos_msgs().unwrap();
+    context.exec_state_contract_messages(&msg);
 
     let mint_tx = Transaction {
         version: 1,
@@ -587,7 +787,7 @@ fn test_release_incorrect_amount_btc() {
 
     let bin_mint_tx = Binary::from(serialize(&mint_tx));
 
-    deps.querier.add_case(
+    context.query_cases.add_case(
         WasmQuery::Smart {
             msg: to_padded_binary(&bitcoin_spv::QueryMsg::VerifyMerkleProof {
                 height: 1,
@@ -617,7 +817,12 @@ fn test_release_incorrect_amount_btc() {
         recipient_address: recipient_address.to_string(),
         fee_per_vb: 200,
     };
-    let response = handle(&mut deps, helper::mock_env("minter", &[]), msg).unwrap();
+    let response = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("minter", &[]),
+        msg,
+    )
+    .unwrap();
 
     let tx: Transaction = match from_binary(&response.data.unwrap()).unwrap() {
         HandleAnswer::ReleaseIncorrectAmountBTC { tx } => deserialize(tx.as_slice()).unwrap(),
@@ -633,7 +838,7 @@ fn test_release_incorrect_amount_btc() {
     assert_eq!(tx.output[0].value, 100000000 - 1 - 200 * 110);
 
     contract_test_utils::assert_handle_response_message(
-        &response.messages[0],
+        &response.messages[1],
         "log_address",
         "log_hash",
         &log::HandleMsg::AddEvents {
@@ -653,7 +858,8 @@ fn test_release_incorrect_amount_btc() {
 
 #[test]
 fn test_suspend_release_incorrect_amount_btc() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
+
     //  handle
     let handle_msg = HandleMsg::ReleaseIncorrectAmountBTC {
         height: 0,
@@ -662,18 +868,26 @@ fn test_suspend_release_incorrect_amount_btc() {
         recipient_address: String::default(),
         fee_per_vb: 0,
     };
-    set_suspension_switch(
-        &mut deps.storage,
-        &SuspensionSwitch {
-            request_mint_address: false,
-            verify_mint_tx: false,
-            release_incorrect_amount_btc: true,
-            request_release_btc: false,
-            claim_release_btc: false,
+    GatewayRunner::run_handle(
+        &mut context,
+        mock_env("owner", &[]),
+        HandleMsg::SetSuspensionSwitch {
+            suspension_switch: SuspensionSwitch {
+                request_mint_address: true,
+                verify_mint_tx: false,
+                release_incorrect_amount_btc: true,
+                request_release_btc: false,
+                claim_release_btc: false,
+            },
         },
     )
     .unwrap();
-    let err = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg).unwrap_err();
+    let err = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("bob", &[]),
+        handle_msg,
+    )
+    .unwrap_err();
     assert_eq!(
         err.to_string(),
         "Generic error: contract error release incorrect amount btc is being suspended"
@@ -683,22 +897,40 @@ fn test_suspend_release_incorrect_amount_btc() {
 #[test]
 fn test_request_release_btc_sanity() {
     for tx_value in [100000000u64, 10000000u64] {
-        let mut deps = init_helper();
-        let config = read_config(&deps.storage, &deps.api).unwrap();
+        let mut context = init_helper();
+        let config = match from_binary(
+            &GatewayRunner::run_query(&mut context, QueryMsg::Config {}).unwrap(),
+        )
+        .unwrap()
+        {
+            QueryAnswer::Config(config) => config,
+            _ => unreachable!(),
+        };
         let mut thread_rng = thread_rng();
         let txid = Txid::from_inner(thread_rng.gen());
         let key = thread_rng.gen();
 
-        let mut utxo_queue = UtxoQueue::from_storage(&mut deps.storage, tx_value);
+        let deps = context.client_deps();
+        let mut proxy_deps = StateProxyDeps::restore(
+            &deps.storage,
+            &deps.api,
+            &deps.querier,
+            CONTRACT_LABEL,
+            &Secp256k1ApiSigner::new(&deps.api),
+        )
+        .unwrap();
+        let mut utxo_queue = UtxoQueue::from_storage(&mut proxy_deps.storage, tx_value);
         let utxo = Utxo { txid, vout: 0, key };
         utxo_queue.enqueue(utxo.clone()).unwrap();
+        let msg = proxy_deps.storage.cosmos_msgs().unwrap();
+        context.exec_state_contract_messages(&msg);
 
         // Execute Handle
         let msg = HandleMsg::RequestReleaseBtc {
             entropy: Binary::from(b"entropy"),
             amount: tx_value,
         };
-        deps.querier.add_case(
+        context.query_cases.add_case(
             WasmQuery::Smart {
                 msg: to_padded_binary(&snip20::QueryMsg::TokenInfo {}).unwrap(),
                 contract_addr: config.sbtc.address,
@@ -713,14 +945,19 @@ fn test_request_release_btc_sanity() {
                 },
             },
         );
-        let response = handle(&mut deps, helper::mock_env("releaser", &[]), msg).unwrap();
+        let response = GatewayRunner::run_handle(
+            &mut context,
+            contract_test_utils::mock_env("releaser", &[]),
+            msg,
+        )
+        .unwrap();
         let request_key = match from_binary(&response.data.unwrap()).unwrap() {
             HandleAnswer::RequestReleaseBtc { request_key } => request_key,
             _ => panic!("unexpected"),
         };
-        assert_eq!(response.messages.len(), 2);
+        assert_eq!(response.messages.len(), 3);
         assert_eq!(
-            response.messages[0],
+            response.messages[1],
             snip20::burn_from_msg(
                 "releaser".into(),
                 tx_value.into(),
@@ -733,7 +970,7 @@ fn test_request_release_btc_sanity() {
             .unwrap()
         );
         assert_eq!(
-            response.messages[1],
+            response.messages[2],
             log::HandleMsg::AddEvents {
                 events: vec![(
                     "releaser".into(),
@@ -753,11 +990,20 @@ fn test_request_release_btc_sanity() {
         //
 
         // Assert utxo_queue
-        let mut utxo_queue = UtxoQueue::from_storage(&mut deps.storage, tx_value);
+        let deps = context.client_deps();
+        let mut proxy_deps = StateProxyDeps::restore(
+            &deps.storage,
+            &deps.api,
+            &deps.querier,
+            CONTRACT_LABEL,
+            &Secp256k1ApiSigner::new(&deps.api),
+        )
+        .unwrap();
+        let mut utxo_queue = UtxoQueue::from_storage(&mut proxy_deps.storage, tx_value);
         assert!(utxo_queue.dequeue().unwrap().is_none());
 
         // Assert request stored
-        let requested_utxo = read_release_request_utxo(&deps.storage, &request_key)
+        let requested_utxo = read_release_request_utxo(&proxy_deps.storage, &request_key)
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -772,24 +1018,32 @@ fn test_request_release_btc_sanity() {
 
 #[test]
 fn test_suspend_request_release_btc() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
+    GatewayRunner::run_handle(
+        &mut context,
+        mock_env("owner", &[]),
+        HandleMsg::SetSuspensionSwitch {
+            suspension_switch: SuspensionSwitch {
+                request_mint_address: false,
+                verify_mint_tx: false,
+                release_incorrect_amount_btc: false,
+                request_release_btc: true,
+                claim_release_btc: false,
+            },
+        },
+    )
+    .unwrap();
     //  handle
     let handle_msg = HandleMsg::RequestReleaseBtc {
         entropy: Binary::from(&[]),
         amount: 0,
     };
-    set_suspension_switch(
-        &mut deps.storage,
-        &SuspensionSwitch {
-            request_mint_address: false,
-            verify_mint_tx: false,
-            release_incorrect_amount_btc: false,
-            request_release_btc: true,
-            claim_release_btc: false,
-        },
+    let err = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("bob", &[]),
+        handle_msg,
     )
-    .unwrap();
-    let err = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg).unwrap_err();
+    .unwrap_err();
     assert_eq!(
         err.to_string(),
         "Generic error: contract error request release btc is being suspended"
@@ -798,8 +1052,15 @@ fn test_suspend_request_release_btc() {
 
 #[test]
 fn test_claim_release_btc_sanity() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
     let mut thread_rng = thread_rng();
+    let config =
+        match from_binary(&GatewayRunner::run_query(&mut context, QueryMsg::Config {}).unwrap())
+            .unwrap()
+        {
+            QueryAnswer::Config(config) => config,
+            _ => unreachable!(),
+        };
     // create random mint key
     let sign_key = PrivateKey {
         compressed: true,
@@ -829,7 +1090,9 @@ fn test_claim_release_btc_sanity() {
         Address::p2wpkh(&recipient_priv_key.public_key(), recipient_priv_key.network).unwrap()
     };
 
-    let canonical_releaser = deps.api.canonical_address(&"releaser".into()).unwrap();
+    let canonical_releaser = contract_test_utils::mock_api()
+        .canonical_address(&"releaser".into())
+        .unwrap();
 
     // set release request
     let utxo = Utxo {
@@ -838,9 +1101,18 @@ fn test_claim_release_btc_sanity() {
         key: sign_key.key.serialize(),
     };
     let request_key = gen_request_key(&canonical_releaser, &utxo, &mut thread_rng).unwrap();
-    write_release_request_utxo(&mut deps.storage, &request_key, 100000000, utxo).unwrap();
-
-    let config = read_config(&deps.storage, &deps.api).unwrap();
+    let deps = context.client_deps();
+    let mut proxy_deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
+    write_release_request_utxo(&mut proxy_deps.storage, &request_key, 100000000, utxo).unwrap();
+    let msg = proxy_deps.storage.cosmos_msgs().unwrap();
+    context.exec_state_contract_messages(&msg);
 
     // create merkle proof
     let merkle_proof = sfps::sfps_lib::merkle::MerkleProof {
@@ -850,7 +1122,7 @@ fn test_claim_release_btc_sanity() {
         aunts: vec![],
     };
 
-    deps.querier.add_case(
+    context.query_cases.add_case(
         WasmQuery::Smart {
             msg: to_padded_binary(&sfps::QueryMsg::VerifyResponseDeliverTxProof {
                 merkle_proof: merkle_proof.clone(),
@@ -875,7 +1147,12 @@ fn test_claim_release_btc_sanity() {
         recipient_address: recipient_address.to_string(),
         fee_per_vb: 200,
     };
-    let response = handle(&mut deps, helper::mock_env("releaser", &[]), msg).unwrap();
+    let response = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("releaser", &[]),
+        msg,
+    )
+    .unwrap();
     let tx: Transaction = match from_binary(&response.data.unwrap()).unwrap() {
         HandleAnswer::ClaimReleasedBtc { tx } => deserialize(tx.as_slice()).unwrap(),
         _ => panic!("unexpected"),
@@ -897,14 +1174,14 @@ fn test_claim_release_btc_sanity() {
     );
     assert_eq!(tx.output[0].value, 100000000 - 200 * 110);
 
-    assert_eq!(response.messages.len(), 1);
+    assert_eq!(response.messages.len(), 2);
     assert_eq!(
-        response.messages[0],
+        response.messages[1],
         log::HandleMsg::AddEvents {
             events: vec![(
                 "releaser".into(),
                 log::Event::ReleaseCompleted(log::event::ReleaseCompletedData {
-                    time: helper::mock_timestamp() as u64,
+                    time: contract_test_utils::mock_timestamp() as u64,
                     request_key: request_key,
                     txid: tx.txid().to_string(),
                     fee_per_vb: 200,
@@ -918,7 +1195,21 @@ fn test_claim_release_btc_sanity() {
 
 #[test]
 fn test_suspend_claim_release_btc() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
+    GatewayRunner::run_handle(
+        &mut context,
+        mock_env("owner", &[]),
+        HandleMsg::SetSuspensionSwitch {
+            suspension_switch: SuspensionSwitch {
+                request_mint_address: false,
+                verify_mint_tx: false,
+                release_incorrect_amount_btc: false,
+                request_release_btc: false,
+                claim_release_btc: true,
+            },
+        },
+    )
+    .unwrap();
     //  handle
     let handle_msg = HandleMsg::ClaimReleasedBtc {
         merkle_proof: sfps::MerkleProof::default(),
@@ -928,18 +1219,12 @@ fn test_suspend_claim_release_btc() {
         recipient_address: String::default(),
         fee_per_vb: 0,
     };
-    set_suspension_switch(
-        &mut deps.storage,
-        &SuspensionSwitch {
-            request_mint_address: false,
-            verify_mint_tx: false,
-            release_incorrect_amount_btc: false,
-            request_release_btc: false,
-            claim_release_btc: true,
-        },
+    let err = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("bob", &[]),
+        handle_msg,
     )
-    .unwrap();
-    let err = handle(&mut deps, helper::mock_env("bob", &[]), handle_msg).unwrap_err();
+    .unwrap_err();
     assert_eq!(
         err.to_string(),
         "Generic error: contract error claim release btc is being suspended"
@@ -948,21 +1233,44 @@ fn test_suspend_claim_release_btc() {
 
 #[test]
 fn test_change_owner() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
     let msg = HandleMsg::ChangeOwner {
         new_owner: "new_owner".into(),
     };
-    let err = handle(&mut deps, helper::mock_env("not_owner", &[]), msg.clone()).unwrap_err();
+    let err = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("not_owner", &[]),
+        msg.clone(),
+    )
+    .unwrap_err();
     assert_eq!(err.to_string(), "Generic error: contract error not owner");
-    handle(&mut deps, helper::mock_env("owner", &[]), msg).unwrap();
-    let config = read_config(&deps.storage, &deps.api).unwrap();
+    GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("owner", &[]),
+        msg,
+    )
+    .unwrap();
+    let config =
+        match from_binary(&GatewayRunner::run_query(&mut context, QueryMsg::Config {}).unwrap())
+            .unwrap()
+        {
+            QueryAnswer::Config(config) => config,
+            _ => unreachable!(),
+        };
     assert_eq!(config.owner, "new_owner".into());
 }
 
 #[test]
 fn test_suspension_switch() {
-    let mut deps = init_helper();
-    let mut switch = suspension_switch(&deps.storage).unwrap();
+    let mut context = init_helper();
+    let mut switch = match from_binary(
+        &GatewayRunner::run_query(&mut context, QueryMsg::SuspensionSwitch {}).unwrap(),
+    )
+    .unwrap()
+    {
+        QueryAnswer::SuspensionSwitch(suspension_switch) => suspension_switch,
+        _ => unreachable!(),
+    };
     assert_eq!(
         switch,
         SuspensionSwitch {
@@ -974,13 +1282,28 @@ fn test_suspension_switch() {
         }
     );
     switch.verify_mint_tx = true;
-    set_suspension_switch(&mut deps.storage, &switch).unwrap();
-    assert_eq!(suspension_switch(&deps.storage).unwrap(), switch);
+    GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("owner", &[]),
+        HandleMsg::SetSuspensionSwitch {
+            suspension_switch: switch.clone(),
+        },
+    )
+    .unwrap();
+    let updated_switch = match from_binary(
+        &GatewayRunner::run_query(&mut context, QueryMsg::SuspensionSwitch {}).unwrap(),
+    )
+    .unwrap()
+    {
+        QueryAnswer::SuspensionSwitch(suspension_switch) => suspension_switch,
+        _ => unreachable!(),
+    };
+    assert_eq!(updated_switch, switch);
 }
 
 #[test]
 fn test_release_btc_by_owner() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
     let mut thread_rng = thread_rng();
     let recipient_address = {
         let recipient_priv_key = PrivateKey {
@@ -991,8 +1314,17 @@ fn test_release_btc_by_owner() {
         Address::p2wpkh(&recipient_priv_key.public_key(), recipient_priv_key.network).unwrap()
     };
 
+    let deps = context.client_deps();
+    let mut proxy_deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
     let mut mint_txs = Vec::with_capacity(10);
-    let mut queue = UtxoQueue::from_storage(&mut deps.storage, 100000000);
+    let mut queue = UtxoQueue::from_storage(&mut proxy_deps.storage, 100000000);
     for _ in 0..10 {
         // create random mint key
         let sign_key = PrivateKey {
@@ -1023,10 +1355,12 @@ fn test_release_btc_by_owner() {
         };
         queue.enqueue(utxo).unwrap();
     }
+    let msg = proxy_deps.storage.cosmos_msgs().unwrap();
+    context.exec_state_contract_messages(&msg);
 
-    let response = handle(
-        &mut deps,
-        helper::mock_env("owner", &[]),
+    let response = GatewayRunner::run_handle(
+        &mut context,
+        contract_test_utils::mock_env("owner", &[]),
         HandleMsg::ReleaseBtcByOwner {
             tx_value: 100000000,
             max_input_length: 100,

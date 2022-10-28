@@ -5,25 +5,39 @@ use bitcoin::hash_types::TxMerkleNode;
 use bitcoin::util::hash::bitcoin_merkle_root;
 use bitcoin::{Address, BlockHeader, Network, Transaction, TxOut};
 use bitcoin_header_chain::header_chain::HeaderChain;
+use contract_test_utils::contract_runner::ContractRunner;
 use cosmwasm_std::{from_binary, Binary, StdError};
 use shared_types::bitcoin_spv::{Config, MerkleProofMsg, QueryAnswer, QueryMsg};
+use shared_types::state_proxy::client::Secp256k1ApiSigner;
+use shared_types::state_proxy::client::StateProxyDeps;
 use std::str::FromStr;
 use std::string::ToString;
 
 #[test]
 fn test_query_tip() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
 
     for i in 1u32..101u32 {
         let header = regtest_block_header(i as _);
+        let deps = context.client_deps();
+        let mut deps = StateProxyDeps::restore(
+            &deps.storage,
+            &deps.api,
+            &deps.querier,
+            CONTRACT_LABEL,
+            &Secp256k1ApiSigner::new(&deps.api),
+        )
+        .unwrap();
         let chaindb = StorageChainDB::from_storage(&mut deps.storage);
         let mut header_chain = HeaderChain::new(chaindb, Network::Bitcoin);
         let deserialized_header = deserialize(&header).unwrap();
         header_chain
             .store_headers(i, vec![deserialized_header], deserialized_header.time)
             .unwrap();
+        let msgs = &deps.storage.cosmos_msgs().unwrap();
+        context.exec_state_contract_messages(&msgs);
         let query_msg = QueryMsg::BestHeaderHash {};
-        let query_result = query(&deps, query_msg);
+        let query_result = BitcoinSPVRunner::run_query(&mut context, query_msg);
         let tip_block_hash: String = match from_binary(&query_result.unwrap()).unwrap() {
             QueryAnswer::BestHeaderHash { hash } => hash,
             _ => panic!("Unexpected"),
@@ -40,19 +54,30 @@ fn test_query_tip() {
 
 #[test]
 fn test_query_block() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
     let mut headers: Vec<BlockHeader> = vec![];
     for i in 1..101 {
         headers.push(deserialize(&regtest_block_header(i)).unwrap());
     }
+    let deps = context.client_deps();
+    let mut deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
     let chaindb = StorageChainDB::from_storage(&mut deps.storage);
     let mut header_chain = HeaderChain::new(chaindb, Network::Bitcoin);
     let time = headers.last().unwrap().time;
     header_chain.store_headers(100, headers, time).unwrap();
+    let msgs = &deps.storage.cosmos_msgs().unwrap();
+    context.exec_state_contract_messages(&msgs);
     for i in 1..101 {
         let header = Binary::from(regtest_block_header(i));
         let query_msg = QueryMsg::BlockHeader { height: i as u32 };
-        let query_result = query(&deps, query_msg);
+        let query_result = BitcoinSPVRunner::run_query(&mut context, query_msg);
         let result_header: Binary = match from_binary(&query_result.unwrap()).unwrap() {
             QueryAnswer::BlockHeader { header } => header,
             _ => panic!("Unexpected"),
@@ -63,16 +88,22 @@ fn test_query_block() {
 
 #[test]
 fn test_query_config() {
-    let deps = init_helper();
+    let mut context = init_helper();
     let query_msg = QueryMsg::Config {};
-    let query_result = query(&deps, query_msg);
+    let query_result = BitcoinSPVRunner::run_query(&mut context, query_msg);
     match from_binary(&query_result.unwrap()).unwrap() {
         QueryAnswer::Config(Config {
             confirmation,
             bitcoin_network,
+            state_proxy,
         }) => {
             assert_eq!(confirmation, 6);
             assert_eq!(bitcoin_network, "regtest");
+            assert_eq!(
+                state_proxy.address.to_string(),
+                "state_proxy_address".to_string()
+            );
+            assert_eq!(state_proxy.hash, "state_proxy_hash".to_string());
         }
         _ => panic!("Unexpected"),
     };
@@ -80,7 +111,7 @@ fn test_query_config() {
 
 #[test]
 fn test_verify_merkle_proof() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
     let address = Address::from_str("mqkhEMH6NCeYjFybv7pvFC22MFeaNT9AQC").unwrap();
 
     let txdata = vec![
@@ -107,6 +138,15 @@ fn test_verify_merkle_proof() {
     ));
 
     // set block headers to header chain
+    let deps = context.client_deps();
+    let mut deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
     let chain_db = StorageChainDB::from_storage(&mut deps.storage);
     let mut header_chain = HeaderChain::new(chain_db, Network::Regtest);
     let tip = header_chain.tip().unwrap().unwrap();
@@ -115,7 +155,7 @@ fn test_verify_merkle_proof() {
     // mint tx confirmed block header
     let confirmed_header = gen_block_header(
         tip.header.block_hash(),
-        helper::mock_timestamp(),
+        contract_test_utils::mock_timestamp(),
         tip.header.target(),
         merkle_root,
     );
@@ -132,9 +172,15 @@ fn test_verify_merkle_proof() {
         prev_header = header;
     }
     header_chain
-        .store_headers(tip_height + 6, headers, helper::mock_timestamp())
+        .store_headers(
+            tip_height + 6,
+            headers,
+            contract_test_utils::mock_timestamp(),
+        )
         .unwrap();
 
+    let msgs = &deps.storage.cosmos_msgs().unwrap();
+    context.exec_state_contract_messages(&msgs);
     // query verify merkle proof
     let msg = QueryMsg::VerifyMerkleProof {
         height: tip_height + 1,
@@ -144,7 +190,7 @@ fn test_verify_merkle_proof() {
             siblings: vec![txdata[1].txid().to_string(), txdata[0].txid().to_string()],
         },
     };
-    let response = query(&deps, msg).unwrap();
+    let response = BitcoinSPVRunner::run_query(&mut context, msg).unwrap();
     match from_binary(&response).unwrap() {
         QueryAnswer::VerifyMerkleProof { success } => {
             assert_eq!(success, true)
@@ -155,7 +201,7 @@ fn test_verify_merkle_proof() {
 
 #[test]
 fn test_verify_merkle_proof_invalid_merkle_proof() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
     let address = Address::from_str("mqkhEMH6NCeYjFybv7pvFC22MFeaNT9AQC").unwrap();
 
     let txdata = vec![
@@ -182,6 +228,16 @@ fn test_verify_merkle_proof_invalid_merkle_proof() {
     ));
 
     // set block headers to header chain
+
+    let deps = context.client_deps();
+    let mut deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
     let chain_db = StorageChainDB::from_storage(&mut deps.storage);
     let mut header_chain = HeaderChain::new(chain_db, Network::Regtest);
     let tip = header_chain.tip().unwrap().unwrap();
@@ -190,7 +246,7 @@ fn test_verify_merkle_proof_invalid_merkle_proof() {
     // mint tx confirmed block header
     let confirmed_header = gen_block_header(
         tip.header.block_hash(),
-        helper::mock_timestamp(),
+        contract_test_utils::mock_timestamp(),
         tip.header.target(),
         merkle_root,
     );
@@ -207,8 +263,14 @@ fn test_verify_merkle_proof_invalid_merkle_proof() {
         prev_header = header;
     }
     header_chain
-        .store_headers(tip_height + 6, headers, helper::mock_timestamp())
+        .store_headers(
+            tip_height + 6,
+            headers,
+            contract_test_utils::mock_timestamp(),
+        )
         .unwrap();
+    let msgs = &deps.storage.cosmos_msgs().unwrap();
+    context.exec_state_contract_messages(&msgs);
 
     // CASE: no sibling
     let msg = QueryMsg::VerifyMerkleProof {
@@ -219,7 +281,7 @@ fn test_verify_merkle_proof_invalid_merkle_proof() {
             siblings: vec![],
         },
     };
-    let err = query(&deps, msg).unwrap_err();
+    let err = BitcoinSPVRunner::run_query(&mut context, msg).unwrap_err();
     assert_eq!(err, StdError::generic_err("merkle path error no sibling"));
 
     // CASE: merkle path and tx does not match
@@ -231,7 +293,7 @@ fn test_verify_merkle_proof_invalid_merkle_proof() {
             siblings: vec![txdata[0].txid().to_string(), txdata[1].txid().to_string()],
         },
     };
-    let err = query(&deps, msg).unwrap_err();
+    let err = BitcoinSPVRunner::run_query(&mut context, msg).unwrap_err();
     assert_eq!(
         err,
         StdError::generic_err("contract error merkle path and tx does not match")
@@ -246,7 +308,7 @@ fn test_verify_merkle_proof_invalid_merkle_proof() {
             siblings: vec![txdata[1].txid().to_string(), txdata[0].txid().to_string()],
         },
     };
-    let err = query(&deps, msg).unwrap_err();
+    let err = BitcoinSPVRunner::run_query(&mut context, msg).unwrap_err();
     assert_eq!(
         err,
         StdError::generic_err("contract error invalid merkle root")
@@ -255,7 +317,7 @@ fn test_verify_merkle_proof_invalid_merkle_proof() {
 
 #[test]
 fn test_verify_mint_tx_not_confirmed() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
     let address = Address::from_str("mqkhEMH6NCeYjFybv7pvFC22MFeaNT9AQC").unwrap();
 
     let txdata = vec![
@@ -282,6 +344,15 @@ fn test_verify_mint_tx_not_confirmed() {
     ));
 
     // set block headers to header chain
+    let deps = context.client_deps();
+    let mut deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )
+    .unwrap();
     let chain_db = StorageChainDB::from_storage(&mut deps.storage);
     let mut header_chain = HeaderChain::new(chain_db, Network::Regtest);
     let tip = header_chain.tip().unwrap().unwrap();
@@ -289,7 +360,7 @@ fn test_verify_mint_tx_not_confirmed() {
     // mint tx confirmed block header
     let confirmed_header = gen_block_header(
         tip.header.block_hash(),
-        helper::mock_env("minter", &[]).block.time as u32 - 9,
+        contract_test_utils::mock_env("minter", &[]).block.time as u32 - 9,
         tip.header.target(),
         merkle_root,
     );
@@ -307,8 +378,14 @@ fn test_verify_mint_tx_not_confirmed() {
         prev_header = header;
     }
     header_chain
-        .store_headers(tip_height + 5, headers, helper::mock_timestamp())
+        .store_headers(
+            tip_height + 5,
+            headers,
+            contract_test_utils::mock_timestamp(),
+        )
         .unwrap();
+    let msgs = &deps.storage.cosmos_msgs().unwrap();
+    context.exec_state_contract_messages(&msgs);
     // handle verify mint tx
     let msg = QueryMsg::VerifyMerkleProof {
         height: tip_height + 1,
@@ -318,7 +395,7 @@ fn test_verify_mint_tx_not_confirmed() {
             siblings: vec![txdata[1].txid().to_string(), txdata[0].txid().to_string()],
         },
     };
-    let err = query(&deps, msg).unwrap_err();
+    let err = BitcoinSPVRunner::run_query(&mut context, msg).unwrap_err();
     assert_eq!(
         err,
         StdError::generic_err("contract error not confirmed yet")

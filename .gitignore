@@ -2,7 +2,6 @@
 # Build results
 target
 # Contain wasm files
-contract.wasm
 contract.wasm.gz
 
 # Binaries
@@ -35,3 +34,8 @@ deploy_reports
 .priv_mnemonic
 # Local Netlify folder
 .netlify
+
+
+.vscode/configurationCache.log
+.vscode/targets.log
+.vscode/dryrun.log

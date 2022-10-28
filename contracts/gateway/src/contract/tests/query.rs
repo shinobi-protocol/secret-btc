@@ -1,17 +1,17 @@
 // Bitcoin Handle Tests
 use super::*;
-use crate::state::suspension_switch::set_suspension_switch;
 use common_macros::hash_set;
+use contract_test_utils::contract_runner::ContractRunner;
 use cosmwasm_std::from_binary;
 use shared_types::gateway::*;
 use std::string::ToString;
 
 #[test]
 fn test_query_config() {
-    let deps = init_helper();
+    let mut context = init_helper();
     let query_msg = QueryMsg::Config {};
-    let query_result = query(&deps, query_msg);
-    match from_binary(&query_result.unwrap()).unwrap() {
+    let query_result = GatewayRunner::run_query(&mut context, query_msg).unwrap();
+    match from_binary(&query_result).unwrap() {
         QueryAnswer::Config(Config {
             btc_tx_values,
             bitcoin_spv,
@@ -19,6 +19,7 @@ fn test_query_config() {
             sbtc,
             log,
             owner,
+            state_proxy,
         }) => {
             assert_eq!(btc_tx_values, hash_set! {100000000, 10000000});
             assert_eq!(bitcoin_spv.address, "spv_address".into());
@@ -29,6 +30,8 @@ fn test_query_config() {
             assert_eq!(sbtc.hash, "sbtc_hash".to_string());
             assert_eq!(log.address, "log_address".into());
             assert_eq!(log.hash, "log_hash".to_string());
+            assert_eq!(state_proxy.address, "state_proxy_address".into());
+            assert_eq!(state_proxy.hash, "state_proxy_hash".to_string());
             assert_eq!(owner, "owner".into());
         }
         _ => panic!("Unexpected"),
@@ -37,9 +40,10 @@ fn test_query_config() {
 
 #[test]
 fn test_query_suspension_switch() {
-    let mut deps = init_helper();
+    let mut context = init_helper();
     let query_msg = QueryMsg::SuspensionSwitch {};
-    match from_binary(&query(&deps, query_msg.clone()).unwrap()).unwrap() {
+    match from_binary(&GatewayRunner::run_query(&mut context, query_msg.clone()).unwrap()).unwrap()
+    {
         QueryAnswer::SuspensionSwitch(SuspensionSwitch {
             request_mint_address,
             verify_mint_tx,
@@ -55,18 +59,22 @@ fn test_query_suspension_switch() {
         }
         _ => panic!("Unexpected"),
     };
-    set_suspension_switch(
-        &mut deps.storage,
-        &SuspensionSwitch {
-            request_mint_address: true,
-            verify_mint_tx: false,
-            release_incorrect_amount_btc: true,
-            request_release_btc: false,
-            claim_release_btc: true,
+    GatewayRunner::run_handle(
+        &mut context,
+        mock_env("owner", &[]),
+        HandleMsg::SetSuspensionSwitch {
+            suspension_switch: SuspensionSwitch {
+                request_mint_address: true,
+                verify_mint_tx: false,
+                release_incorrect_amount_btc: true,
+                request_release_btc: false,
+                claim_release_btc: true,
+            },
         },
     )
     .unwrap();
-    match from_binary(&query(&deps, query_msg.clone()).unwrap()).unwrap() {
+    match from_binary(&GatewayRunner::run_query(&mut context, query_msg.clone()).unwrap()).unwrap()
+    {
         QueryAnswer::SuspensionSwitch(SuspensionSwitch {
             request_mint_address,
             verify_mint_tx,

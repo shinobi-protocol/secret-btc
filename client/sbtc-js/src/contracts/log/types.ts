@@ -42,19 +42,16 @@ export interface AddEvents {
  *
  * tag: 5
  *
- * tag: 6
- *
- * tag: 7
+ * tag: 8
  */
 export interface EventObject {
     mint_started?: EventMintStarted;
     mint_completed?: EventMintCompleted;
-    received_from_treasury?: EventReceivedFromTreasury;
     release_started?: EventReleaseStarted;
     release_request_confirmed?: EventReleaseRequestConfirmed;
     release_completed?: EventReleaseCompleted;
-    sent_to_treasury?: EventSentToTreasury;
     release_incorrect_amount_b_t_c?: EventReleaseIncorrectAmountBTC;
+    other?: string;
 }
 
 export interface EventMintCompleted {
@@ -66,11 +63,6 @@ export interface EventMintCompleted {
 
 export interface EventMintStarted {
     address: string;
-    time: number;
-}
-
-export interface EventReceivedFromTreasury {
-    amount: string;
     time: number;
 }
 
@@ -102,11 +94,6 @@ export interface EventReleaseStarted {
     time: number;
 }
 
-export interface EventSentToTreasury {
-    amount: string;
-    time: number;
-}
-
 export interface HandleMsgCreateViewingKey {
     entropy: string;
 }
@@ -121,7 +108,6 @@ export interface Setup {
 
 export interface SetupConfig {
     gateway: PurpleContractReference;
-    treasury: PurpleContractReference;
 }
 
 export interface PurpleContractReference {
@@ -136,7 +122,6 @@ export interface QueryAnswer {
 
 export interface QueryAnswerConfig {
     gateway: FluffyContractReference;
-    treasury: FluffyContractReference;
 }
 
 export interface FluffyContractReference {
@@ -163,19 +148,16 @@ export interface QueryAnswerLog {
  *
  * tag: 5
  *
- * tag: 6
- *
- * tag: 7
+ * tag: 8
  */
 export interface Event {
     mint_started?: EventMintStartedObject;
     mint_completed?: EventMintCompletedObject;
-    received_from_treasury?: EventReceivedFromTreasuryObject;
     release_started?: EventReleaseStartedObject;
     release_request_confirmed?: EventReleaseRequestConfirmedObject;
     release_completed?: EventReleaseCompletedObject;
-    sent_to_treasury?: EventSentToTreasuryObject;
     release_incorrect_amount_b_t_c?: EventReleaseIncorrectAmountBTCObject;
+    other?: string;
 }
 
 export interface EventMintCompletedObject {
@@ -187,11 +169,6 @@ export interface EventMintCompletedObject {
 
 export interface EventMintStartedObject {
     address: string;
-    time: number;
-}
-
-export interface EventReceivedFromTreasuryObject {
-    amount: string;
     time: number;
 }
 
@@ -220,11 +197,6 @@ export interface EventReleaseRequestConfirmedObject {
 export interface EventReleaseStartedObject {
     amount: number;
     request_key: number[];
-    time: number;
-}
-
-export interface EventSentToTreasuryObject {
-    amount: string;
     time: number;
 }
 
@@ -480,11 +452,6 @@ const typeMap: any = {
                 typ: u(undefined, r('EventMintCompleted')),
             },
             {
-                json: 'received_from_treasury',
-                js: 'received_from_treasury',
-                typ: u(undefined, r('EventReceivedFromTreasury')),
-            },
-            {
                 json: 'release_started',
                 js: 'release_started',
                 typ: u(undefined, r('EventReleaseStarted')),
@@ -500,15 +467,11 @@ const typeMap: any = {
                 typ: u(undefined, r('EventReleaseCompleted')),
             },
             {
-                json: 'sent_to_treasury',
-                js: 'sent_to_treasury',
-                typ: u(undefined, r('EventSentToTreasury')),
-            },
-            {
                 json: 'release_incorrect_amount_b_t_c',
                 js: 'release_incorrect_amount_b_t_c',
                 typ: u(undefined, r('EventReleaseIncorrectAmountBTC')),
             },
+            { json: 'other', js: 'other', typ: u(undefined, '') },
         ],
         'any'
     ),
@@ -524,13 +487,6 @@ const typeMap: any = {
     EventMintStarted: o(
         [
             { json: 'address', js: 'address', typ: '' },
-            { json: 'time', js: 'time', typ: 0 },
-        ],
-        'any'
-    ),
-    EventReceivedFromTreasury: o(
-        [
-            { json: 'amount', js: 'amount', typ: '' },
             { json: 'time', js: 'time', typ: 0 },
         ],
         'any'
@@ -571,13 +527,6 @@ const typeMap: any = {
         ],
         'any'
     ),
-    EventSentToTreasury: o(
-        [
-            { json: 'amount', js: 'amount', typ: '' },
-            { json: 'time', js: 'time', typ: 0 },
-        ],
-        'any'
-    ),
     HandleMsgCreateViewingKey: o(
         [{ json: 'entropy', js: 'entropy', typ: '' }],
         'any'
@@ -585,18 +534,7 @@ const typeMap: any = {
     SetViewingKey: o([{ json: 'key', js: 'key', typ: '' }], 'any'),
     Setup: o([{ json: 'config', js: 'config', typ: r('SetupConfig') }], 'any'),
     SetupConfig: o(
-        [
-            {
-                json: 'gateway',
-                js: 'gateway',
-                typ: r('PurpleContractReference'),
-            },
-            {
-                json: 'treasury',
-                js: 'treasury',
-                typ: r('PurpleContractReference'),
-            },
-        ],
+        [{ json: 'gateway', js: 'gateway', typ: r('PurpleContractReference') }],
         'any'
     ),
     PurpleContractReference: o(
@@ -618,18 +556,7 @@ const typeMap: any = {
         'any'
     ),
     QueryAnswerConfig: o(
-        [
-            {
-                json: 'gateway',
-                js: 'gateway',
-                typ: r('FluffyContractReference'),
-            },
-            {
-                json: 'treasury',
-                js: 'treasury',
-                typ: r('FluffyContractReference'),
-            },
-        ],
+        [{ json: 'gateway', js: 'gateway', typ: r('FluffyContractReference') }],
         'any'
     ),
     FluffyContractReference: o(
@@ -656,11 +583,6 @@ const typeMap: any = {
                 typ: u(undefined, r('EventMintCompletedObject')),
             },
             {
-                json: 'received_from_treasury',
-                js: 'received_from_treasury',
-                typ: u(undefined, r('EventReceivedFromTreasuryObject')),
-            },
-            {
                 json: 'release_started',
                 js: 'release_started',
                 typ: u(undefined, r('EventReleaseStartedObject')),
@@ -676,15 +598,11 @@ const typeMap: any = {
                 typ: u(undefined, r('EventReleaseCompletedObject')),
             },
             {
-                json: 'sent_to_treasury',
-                js: 'sent_to_treasury',
-                typ: u(undefined, r('EventSentToTreasuryObject')),
-            },
-            {
                 json: 'release_incorrect_amount_b_t_c',
                 js: 'release_incorrect_amount_b_t_c',
                 typ: u(undefined, r('EventReleaseIncorrectAmountBTCObject')),
             },
+            { json: 'other', js: 'other', typ: u(undefined, '') },
         ],
         'any'
     ),
@@ -700,13 +618,6 @@ const typeMap: any = {
     EventMintStartedObject: o(
         [
             { json: 'address', js: 'address', typ: '' },
-            { json: 'time', js: 'time', typ: 0 },
-        ],
-        'any'
-    ),
-    EventReceivedFromTreasuryObject: o(
-        [
-            { json: 'amount', js: 'amount', typ: '' },
             { json: 'time', js: 'time', typ: 0 },
         ],
         'any'
@@ -743,13 +654,6 @@ const typeMap: any = {
         [
             { json: 'amount', js: 'amount', typ: 0 },
             { json: 'request_key', js: 'request_key', typ: a(0) },
-            { json: 'time', js: 'time', typ: 0 },
-        ],
-        'any'
-    ),
-    EventSentToTreasuryObject: o(
-        [
-            { json: 'amount', js: 'amount', typ: '' },
             { json: 'time', js: 'time', typ: 0 },
         ],
         'any'

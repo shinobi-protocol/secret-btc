@@ -31,7 +31,7 @@ class BitcoinSPVClient extends ContractClient<
         gasLimit?: number
     ): Promise<ExecuteResult<void>> {
         if (!gasLimit) {
-            const baseFee = 335000;
+            const baseFee = 3350000;
             const feePerBlock = 18000;
             gasLimit = baseFee + feePerBlock * blocks.length;
         }
@@ -51,18 +51,23 @@ class BitcoinSPVClient extends ContractClient<
 
     // query
     public async bestHeaderHash(): Promise<Buffer> {
-        const result = await this.query({
-            best_header_hash: {},
-        });
-        return Buffer.from(result.best_header_hash!.hash, 'hex');
+        return await this.query(
+            {
+                best_header_hash: {},
+            },
+            (answer) => Buffer.from(answer.best_header_hash!.hash, 'hex')
+        );
     }
 
     public async blockHeader(height: number): Promise<Block> {
-        const result = await this.query({
-            block_header: { height },
-        });
-        return Block.fromBuffer(
-            Buffer.from(result.block_header!.header, 'base64')
+        return await this.query(
+            {
+                block_header: { height },
+            },
+            (answer) =>
+                Block.fromBuffer(
+                    Buffer.from(answer.block_header!.header, 'base64')
+                )
         );
     }
 
@@ -85,18 +90,26 @@ class BitcoinSPVClient extends ContractClient<
                 },
             },
         };
-        return (await this.query(msg)).verify_merkle_proof!.success;
+        return await this.query(
+            msg,
+            (answer) => answer.verify_merkle_proof!.success
+        );
     }
 
     public async config(): Promise<Config> {
-        const result = await this.query({
-            config: {},
-        });
-        const raw = result.config!;
-        return {
-            confirmation: raw.confirmation,
-            btcNetwork: BitcoinSPVClient.network(raw.bitcoin_network),
-        } as Config;
+        return await this.query(
+            {
+                config: {},
+            },
+            (answer) => {
+                const raw = answer.config!;
+
+                return {
+                    confirmation: raw.confirmation,
+                    btcNetwork: BitcoinSPVClient.network(raw.bitcoin_network),
+                } as Config;
+            }
+        );
     }
 
     private static network(network: string): networks.Network {

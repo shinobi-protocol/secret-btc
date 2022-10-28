@@ -3,7 +3,8 @@ use bitcoin_header_chain::header_chain::chaindb::{ChainDB, ChainDBResult, Readon
 use bitcoin_header_chain::header_chain::StoredBlockHeader;
 use cosmwasm_std::{ReadonlyStorage, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
-use secret_toolkit::storage::{TypedStore, TypedStoreMut};
+use secret_toolkit::serialization::Bincode2;
+use secret_toolkit::storage::Item;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
@@ -58,10 +59,8 @@ impl<S: ReadonlyStorage> ReadonlyChainDB for StorageChainDB<S> {
             return Ok(Some(cached_header.clone()));
         }
         let storage = ReadonlyPrefixedStorage::new(PREFIX_HEADERS, &self.storage);
-        let storage: TypedStore<'_, StoredBlockHeader, ReadonlyPrefixedStorage<'_, S>> =
-            TypedStore::attach(&storage);
-        if let Some(stored_header) = storage
-            .may_load(&height.to_be_bytes())
+        if let Some(stored_header) = Item::<StoredBlockHeader, Bincode2>::new(&height.to_be_bytes())
+            .may_load(&storage)
             .map_err(|e| e.to_string())?
         {
             self.header_cache.insert(height, stored_header.clone());
@@ -76,9 +75,8 @@ impl<S: ReadonlyStorage> ReadonlyChainDB for StorageChainDB<S> {
 impl<S: Storage> ChainDB for StorageChainDB<S> {
     fn store_header(&mut self, height: u32, block_header: StoredBlockHeader) -> ChainDBResult<()> {
         let mut storage = PrefixedStorage::new(PREFIX_HEADERS, &mut self.storage);
-        let mut storage = TypedStoreMut::attach(&mut storage);
-        storage
-            .store(&height.to_be_bytes(), &block_header)
+        Item::<StoredBlockHeader, Bincode2>::new(&height.to_be_bytes())
+            .save(&mut storage, &block_header)
             .map_err(|e| e.to_string())?;
         self.header_cache.insert(height, block_header);
         if self.tip_height.unwrap_or_default() <= height {
@@ -200,11 +198,24 @@ mod test {
         // assert header stored to storage
         let storage =
             ReadonlyPrefixedStorage::multilevel(&[PREFIX_CHAIN_DB, PREFIX_HEADERS], &storage);
-        let storage: TypedStore<'_, StoredBlockHeader, ReadonlyPrefixedStorage<'_, MockStorage>> =
-            TypedStore::attach(&storage);
-        assert_eq!(storage.load(&100u32.to_be_bytes()).unwrap(), header);
-        assert_eq!(storage.load(&99u32.to_be_bytes()).unwrap(), header);
-        assert_eq!(storage.load(&101u32.to_be_bytes()).unwrap(), header);
+        assert_eq!(
+            Item::<StoredBlockHeader, Bincode2>::new(&100u32.to_be_bytes())
+                .load(&storage)
+                .unwrap(),
+            header
+        );
+        assert_eq!(
+            Item::<StoredBlockHeader, Bincode2>::new(&99u32.to_be_bytes())
+                .load(&storage)
+                .unwrap(),
+            header
+        );
+        assert_eq!(
+            Item::<StoredBlockHeader, Bincode2>::new(&101u32.to_be_bytes())
+                .load(&storage)
+                .unwrap(),
+            header
+        );
     }
 
     #[test]
@@ -215,15 +226,9 @@ mod test {
         // store prev data to storage manually
         let mut storage =
             PrefixedStorage::multilevel(&[PREFIX_CHAIN_DB, PREFIX_HEADERS], &mut mock_storage);
-        let mut storage = TypedStoreMut::attach(&mut storage);
-        storage.store(&100u32.to_be_bytes(), &header).unwrap();
-
-        // assert prev data stored to storage
-        let storage =
-            ReadonlyPrefixedStorage::multilevel(&[PREFIX_CHAIN_DB, PREFIX_HEADERS], &mock_storage);
-        let storage: TypedStore<'_, StoredBlockHeader, ReadonlyPrefixedStorage<'_, MockStorage>> =
-            TypedStore::attach(&storage);
-        assert_eq!(storage.load(&100u32.to_be_bytes()).unwrap(), header);
+        Item::<StoredBlockHeader, Bincode2>::new(&100u32.to_be_bytes())
+            .save(&mut storage, &header)
+            .unwrap();
 
         // store prev data to cache manually
         let mut db = StorageChainDB::from_storage(&mut mock_storage);
@@ -238,9 +243,12 @@ mod test {
         // assert new data stored to storage
         let storage =
             ReadonlyPrefixedStorage::multilevel(&[PREFIX_CHAIN_DB, PREFIX_HEADERS], &mock_storage);
-        let storage: TypedStore<'_, StoredBlockHeader, ReadonlyPrefixedStorage<'_, MockStorage>> =
-            TypedStore::attach(&storage);
-        assert_eq!(storage.load(&100u32.to_be_bytes()).unwrap(), header);
+        assert_eq!(
+            Item::<StoredBlockHeader, Bincode2>::new(&100u32.to_be_bytes())
+                .load(&storage)
+                .unwrap(),
+            header
+        );
     }
 
     #[test]
@@ -263,8 +271,9 @@ mod test {
         // store data to storage manually
         let mut storage =
             PrefixedStorage::multilevel(&[PREFIX_CHAIN_DB, PREFIX_HEADERS], &mut mock_storage);
-        let mut storage = TypedStoreMut::attach(&mut storage);
-        storage.store(&100u32.to_be_bytes(), &header).unwrap();
+        Item::<StoredBlockHeader, Bincode2>::new(&100u32.to_be_bytes())
+            .save(&mut storage, &header)
+            .unwrap();
 
         let mut db = StorageChainDB::from_storage(&mut mock_storage);
 

@@ -23,11 +23,18 @@ export interface InitMsg {
     bitcoin_network: string;
     confirmation: number;
     initial_header?: null | InitialHeader;
+    seed: number[];
+    state_proxy: InitMsgStateProxy;
 }
 
 export interface InitialHeader {
     header: string;
     height: number;
+}
+
+export interface InitMsgStateProxy {
+    address: string;
+    hash: string;
 }
 
 export interface QueryAnswer {
@@ -57,6 +64,12 @@ export interface Config {
      * minimum block needed for tx confirmed
      */
     confirmation: number;
+    state_proxy: ConfigStateProxy;
+}
+
+export interface ConfigStateProxy {
+    address: string;
+    hash: string;
 }
 
 export interface QueryAnswerVerifyMerkleProof {
@@ -295,6 +308,12 @@ const typeMap: any = {
                 js: 'initial_header',
                 typ: u(undefined, u(null, r('InitialHeader'))),
             },
+            { json: 'seed', js: 'seed', typ: a(0) },
+            {
+                json: 'state_proxy',
+                js: 'state_proxy',
+                typ: r('InitMsgStateProxy'),
+            },
         ],
         'any'
     ),
@@ -302,6 +321,13 @@ const typeMap: any = {
         [
             { json: 'header', js: 'header', typ: '' },
             { json: 'height', js: 'height', typ: 0 },
+        ],
+        'any'
+    ),
+    InitMsgStateProxy: o(
+        [
+            { json: 'address', js: 'address', typ: '' },
+            { json: 'hash', js: 'hash', typ: '' },
         ],
         'any'
     ),
@@ -335,6 +361,18 @@ const typeMap: any = {
         [
             { json: 'bitcoin_network', js: 'bitcoin_network', typ: '' },
             { json: 'confirmation', js: 'confirmation', typ: 0 },
+            {
+                json: 'state_proxy',
+                js: 'state_proxy',
+                typ: r('ConfigStateProxy'),
+            },
+        ],
+        'any'
+    ),
+    ConfigStateProxy: o(
+        [
+            { json: 'address', js: 'address', typ: '' },
+            { json: 'hash', js: 'hash', typ: '' },
         ],
         'any'
     ),

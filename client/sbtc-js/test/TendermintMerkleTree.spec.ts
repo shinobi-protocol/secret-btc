@@ -4,26 +4,47 @@ import {
     leafHash,
     getSplitPoint,
     MerkleProof,
-    TxDataEncoder,
 } from '../src/contracts/sfps/TendermintMerkleTree';
 import { assert } from 'chai';
 import { describe, it } from 'mocha';
+import { encodeToBuffer } from '../src/proto';
+import { ResponseDeliverTx } from 'secretjs/dist/protobuf_stuff/tendermint/abci/types';
+
+const responseDeliverTx: ResponseDeliverTx = {
+    code: 0,
+    data: Buffer.from(
+        'CpcDCiovc2VjcmV0LmNvbXB1dGUudjFiZXRhMS5Nc2dFeGVjdXRlQ29udHJhY3QS6AJVzmyAo99HQULa7zPh5czf0jm6vUIgLaV5GqHcbtdXEEIK0ZGQvykkyg6ikiUk3o5ynhv8kWK/3I+Eg9FEESWZuBsML2e4q/a4tFJk6eogjMhfJQ2uO4SKdPg4NTjB0An4bCC1uQdryNwQOpRM//GgidK55QZCeVIfEOAaD1GdVomol5t12V2qbjuM2vk/U8OLuLdjGgV2aMxju5tmjkdfwLiw2EpJlOG4qkuF9Lef0IUiFI627ED7G7JM2bzjjeI3ihXbYEgmmBfIe6gExN6K7yrJnWjzxrSVp3wAAkDkHu968GE+nX/mAuMyW7ME3yAnRv29wbyGgQi6tOByLIcKPy/1c3j3PEkmV2PQ/003zh5giCRJ75vbBs6xKcOM2V+l6m22N0KjVZZGfpJyOdJLQQPr7DYAQYarMEO81NayHr/SBjDbfOcfZoFcosg+dr7xfzSqqegs81dZUBSwsvboa0jILtzzbOE=',
+        'base64'
+    ),
+    log: '',
+    info: '',
+    gasUsed: '23757',
+    gasWanted: '50000',
+    events: [],
+    codespace: '',
+};
 
 describe('TendermintMerkleTree', () => {
-    describe('TxDataEncoder', () => {
+    describe('ResponseDeliverTx', () => {
         describe('encode', () => {
-            it('should encode tx result correctly', () => {
-                const tx_result = {
+            it('should encode response deliver tx correctly', () => {
+                const responseDeliverTx = {
                     code: 0,
-                    data: 'CpcDCiovc2VjcmV0LmNvbXB1dGUudjFiZXRhMS5Nc2dFeGVjdXRlQ29udHJhY3QS6AJVzmyAo99HQULa7zPh5czf0jm6vUIgLaV5GqHcbtdXEEIK0ZGQvykkyg6ikiUk3o5ynhv8kWK/3I+Eg9FEESWZuBsML2e4q/a4tFJk6eogjMhfJQ2uO4SKdPg4NTjB0An4bCC1uQdryNwQOpRM//GgidK55QZCeVIfEOAaD1GdVomol5t12V2qbjuM2vk/U8OLuLdjGgV2aMxju5tmjkdfwLiw2EpJlOG4qkuF9Lef0IUiFI627ED7G7JM2bzjjeI3ihXbYEgmmBfIe6gExN6K7yrJnWjzxrSVp3wAAkDkHu968GE+nX/mAuMyW7ME3yAnRv29wbyGgQi6tOByLIcKPy/1c3j3PEkmV2PQ/003zh5giCRJ75vbBs6xKcOM2V+l6m22N0KjVZZGfpJyOdJLQQPr7DYAQYarMEO81NayHr/SBjDbfOcfZoFcosg+dr7xfzSqqegs81dZUBSwsvboa0jILtzzbOE=',
+                    data: Buffer.from(
+                        'CpcDCiovc2VjcmV0LmNvbXB1dGUudjFiZXRhMS5Nc2dFeGVjdXRlQ29udHJhY3QS6AJVzmyAo99HQULa7zPh5czf0jm6vUIgLaV5GqHcbtdXEEIK0ZGQvykkyg6ikiUk3o5ynhv8kWK/3I+Eg9FEESWZuBsML2e4q/a4tFJk6eogjMhfJQ2uO4SKdPg4NTjB0An4bCC1uQdryNwQOpRM//GgidK55QZCeVIfEOAaD1GdVomol5t12V2qbjuM2vk/U8OLuLdjGgV2aMxju5tmjkdfwLiw2EpJlOG4qkuF9Lef0IUiFI627ED7G7JM2bzjjeI3ihXbYEgmmBfIe6gExN6K7yrJnWjzxrSVp3wAAkDkHu968GE+nX/mAuMyW7ME3yAnRv29wbyGgQi6tOByLIcKPy/1c3j3PEkmV2PQ/003zh5giCRJ75vbBs6xKcOM2V+l6m22N0KjVZZGfpJyOdJLQQPr7DYAQYarMEO81NayHr/SBjDbfOcfZoFcosg+dr7xfzSqqegs81dZUBSwsvboa0jILtzzbOE=',
+                        'base64'
+                    ),
                     log: '',
                     info: '',
-                    gas_used: '23757',
-                    gas_wanted: '50000',
+                    gasUsed: '23757',
+                    gasWanted: '50000',
                     events: [],
                     codespace: '',
                 };
-                const encoded = TxDataEncoder.encode(tx_result);
+                const encoded = encodeToBuffer(
+                    ResponseDeliverTx,
+                    responseDeliverTx
+                );
                 assert.equal(
                     encoded.toString('hex').toUpperCase(),
                     '129A030A97030A2A2F7365637265742E636F6D707574652E763162657461312E4D736745786563757465436F6E747261637412E80255CE6C80A3DF474142DAEF33E1E5CCDFD239BABD42202DA5791AA1DC6ED75710420AD19190BF2924CA0EA2922524DE8E729E1BFC9162BFDC8F8483D144112599B81B0C2F67B8ABF6B8B45264E9EA208CC85F250DAE3B848A74F8383538C1D009F86C20B5B9076BC8DC103A944CFFF1A089D2B9E5064279521F10E01A0F519D5689A8979B75D95DAA6E3B8CDAF93F53C38BB8B7631A057668CC63BB9B668E475FC0B8B0D84A4994E1B8AA4B85F4B79FD08522148EB6EC40FB1BB24CD9BCE38DE2378A15DB6048269817C87BA804C4DE8AEF2AC99D68F3C6B495A77C000240E41EEF7AF0613E9D7FE602E3325BB304DF202746FDBDC1BC868108BAB4E0722C870A3F2FF57378F73C49265763D0FF4D37CE1E60882449EF9BDB06CEB129C38CD95FA5EA6DB63742A35596467E927239D24B4103EBEC36004186AB3043BCD4D6B21EBFD20630DB7CE71F66815CA2C83E76BEF17F34AAA9E82CF357595014B0B2F6E86B48C82EDCF36CE128D0860330CDB901'
@@ -31,8 +52,8 @@ describe('TendermintMerkleTree', () => {
             });
         });
         describe('decode', () => {
-            it('should decode to tx result correctly', () => {
-                const message = TxDataEncoder.decode(
+            it('should decode to response deliver tx correctly', () => {
+                const message = ResponseDeliverTx.decode(
                     Buffer.from(
                         '129A030A97030A2A2F7365637265742E636F6D707574652E763162657461312E4D736745786563757465436F6E747261637412E80255CE6C80A3DF474142DAEF33E1E5CCDFD239BABD42202DA5791AA1DC6ED75710420AD19190BF2924CA0EA2922524DE8E729E1BFC9162BFDC8F8483D144112599B81B0C2F67B8ABF6B8B45264E9EA208CC85F250DAE3B848A74F8383538C1D009F86C20B5B9076BC8DC103A944CFFF1A089D2B9E5064279521F10E01A0F519D5689A8979B75D95DAA6E3B8CDAF93F53C38BB8B7631A057668CC63BB9B668E475FC0B8B0D84A4994E1B8AA4B85F4B79FD08522148EB6EC40FB1BB24CD9BCE38DE2378A15DB6048269817C87BA804C4DE8AEF2AC99D68F3C6B495A77C000240E41EEF7AF0613E9D7FE602E3325BB304DF202746FDBDC1BC868108BAB4E0722C870A3F2FF57378F73C49265763D0FF4D37CE1E60882449EF9BDB06CEB129C38CD95FA5EA6DB63742A35596467E927239D24B4103EBEC36004186AB3043BCD4D6B21EBFD20630DB7CE71F66815CA2C83E76BEF17F34AAA9E82CF357595014B0B2F6E86B48C82EDCF36CE128D0860330CDB901',
                         'hex'
@@ -45,23 +66,10 @@ describe('TendermintMerkleTree', () => {
                 );
                 assert.equal(message.log, '');
                 assert.equal(message.info, '');
-                assert.equal(message.gasUsed, 23757n);
-                assert.equal(message.gasWanted, 50000n);
+                assert.equal(message.gasUsed, '23757');
+                assert.equal(message.gasWanted, '50000');
                 assert.equal(message.events.length, 0);
                 assert.equal(message.codespace, '');
-            });
-        });
-        describe('from json', () => {
-            it('deserialize json correctly', () => {
-                const json =
-                    '{"code":0,"data":"CpcDCiovc2VjcmV0LmNvbXB1dGUudjFiZXRhMS5Nc2dFeGVjdXRlQ29udHJhY3QS6ALY50CdrMTebTKl6pVCFHw2R0Cw+EUxD4ZoVwdqPp2yzyBcCSzDyQXb3sbw/8dtIdoydAhNiSjkxFmW4cXsidS19NTv0Xg0sUqAvOTZMHTKTQHsmYMY90zFkbjp7VBSlwMZc2vXivE3+h9WSkCzV4nVun6YEgFSQl7b33aTZOvGgsjQDdfsgFx3hdkcbM+I/uDNKBCx087sIzmjKrqh3VT50UW1UVrL61fXoEXlfY4A7V2lO6CF8yz2Cm8oTC1l972vBeSvaFwdrV5IZzq7/Ea+kgGWLgOLUtPZc7Ho3GKoAx+WNGLQgJfLrj7Uv3t/sC+4SMnrUFHffwLDcLorLqKGRiEA5OtBMccv907cgEh2U9JognSV2Mt4MB5yM5H7qqBS0buVYfv2JgPKsduqRQJoe6ddcP6iex4XKjSDb/vRz/pkVXHIThMJ7bBWYq40wzXfGOAsyEIeb/sCHHEJTQr+EEwKZYpsF4A=","gas_used":"93951","gas_wanted":"600000"}';
-                const object = JSON.parse(json);
-                const encoded = TxDataEncoder.encode(object);
-                const hash = leafHash(encoded);
-                assert.equal(
-                    hash.toString('hex'),
-                    '8625b2648d62794815ad18fafdcccd185656cd95457c9f054e7b5b5c8607c3aa'
-                );
             });
         });
     });
@@ -228,11 +236,11 @@ describe('TendermintMerkleTree', () => {
                     ],
                 },
             ];
-            testCases.forEach(({ title, leaves, proofs }) => {
-                describe(title, () => {
-                    for (let i = 0; i < leaves.length; i++) {
-                        describe('index: ' + i, () => {
-                            describe('fromTxResults: ' + i, () => {
+            describe('fromLeaves', () => {
+                testCases.forEach(({ title, leaves, proofs }) => {
+                    describe(title, () => {
+                        for (let i = 0; i < leaves.length; i++) {
+                            describe('index: ' + i, () => {
                                 it('correct merkle proof', () => {
                                     const merkleProof = MerkleProof.fromLeaves(
                                         leaves,
@@ -244,8 +252,8 @@ describe('TendermintMerkleTree', () => {
                                     );
                                     assert.equal(merkleProof.index, i);
                                     assert.equal(
-                                        merkleProof.leafHash.toString('hex'),
-                                        leafHash(leaves[i]).toString('hex')
+                                        merkleProof.leaf.toString('hex'),
+                                        leaves[i].toString('hex')
                                     );
                                     assert.deepEqual(
                                         merkleProof.aunts.map((aunt) =>
@@ -255,8 +263,29 @@ describe('TendermintMerkleTree', () => {
                                     );
                                 });
                             });
-                        });
-                    }
+                        }
+                    });
+                });
+            });
+            describe('fromResponseDeliverTxs', () => {
+                it('correct merkle proof', () => {
+                    const merkleProof = MerkleProof.fromResponseDeliverTxs(
+                        [responseDeliverTx],
+                        0
+                    );
+                    assert.equal(merkleProof.total, 1);
+                    assert.equal(merkleProof.index, 0);
+                    assert.equal(
+                        merkleProof.leaf.toString('hex'),
+                        encodeToBuffer(
+                            ResponseDeliverTx,
+                            responseDeliverTx
+                        ).toString('hex')
+                    );
+                    assert.deepEqual(
+                        merkleProof.aunts.map((aunt) => aunt.toString('hex')),
+                        []
+                    );
                 });
             });
         });

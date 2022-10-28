@@ -193,6 +193,18 @@
               "$ref": "#/definitions/ReleaseIncorrectAmountBTCData"
             }
           }
+        },
+        {
+          "description": "tag: 8",
+          "type": "object",
+          "required": [
+            "other"
+          ],
+          "properties": {
+            "other": {
+              "type": "string"
+            }
+          }
         }
       ]
     },

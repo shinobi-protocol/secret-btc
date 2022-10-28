@@ -9,27 +9,27 @@ version = "0.1.0"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["gateway"]
-bitcoin_spv = []
-finance_admin = ["treasury", "gateway", "shuriken"]
-gateway = ["bitcoin_spv", "sfps", "viewing_key", "prng", "log"]
+default = []
+bitcoin_spv = ["state_proxy"]
+gateway = ["bitcoin_spv", "sfps", "viewing_key", "prng", "log", "state_proxy"]
 log = ["viewing_key", "gateway"]
 multisig = []
-prng = ["rand", "secret-toolkit/crypto"]
-sfps = ["sfps_lib", "prng", "base64"]
-shuriken = ["bitcoin_spv", "sfps", "finance_admin"]
-treasury = ["log"]
+prng = ["rand", "secret-toolkit-crypto/hash", "secret-toolkit/permit"]
+sfps = ["sfps_lib", "prng", "base64", "state_proxy"]
+shuriken = ["bitcoin_spv", "sfps"]
 viewing_key = ["prng", "cosmwasm-storage"]
+state_proxy = ["rand", "secp256k1", "secret-toolkit-crypto/ecc-secp256k1", "secret-toolkit-crypto/hash", "secret-toolkit/permit", "cosmwasm-storage"]
 
 [dependencies]
-cosmwasm-std = {package = "secret-cosmwasm-std", version = "0.10.0"}
+cosmwasm-std = {package = "secret-cosmwasm-std", version = "0.10.1"}
 cosmwasm-storage = {package = "secret-cosmwasm-storage", version = "0.10.0", optional = true}
 rand = {version = "0.7.3", optional = true}
 schemars = "0.7"
-secret-toolkit = "0.2.0"
+secret-toolkit = "0.5.0"
+secret-toolkit-crypto = {version ="0.3.0", optional = true}
 serde = {version = "1.0.103", default-features = false, features = ["derive"]}
 sfps_lib = {path = "../sfps_lib", optional = true}
+secp256k1 = { package = "libsecp256k1", version = "0.6.0", optional = true }
 base64 = {version = "0.13.0", optional = true}
-
 [dev-dependencies]
 serde_json = "1.0.82"

@@ -40,7 +40,7 @@ cosmwasm-std = {package = "secret-cosmwasm-std", version = "0.10.1"}
 cosmwasm-storage = {package = "secret-cosmwasm-storage", version = "0.10.0"}
 rand = {version = "0.7.3"}
 schemars = "0.7"
-secret-toolkit = "0.2.0"
+secret-toolkit = {version = "0.5.0", features=["crypto"]}
 serde = {version = "1.0.103", default-features = false, features = ["derive"]}
 shared_types = {path = "../libs/shared_types", features = ["bitcoin_spv", "sfps", "gateway"]}
 subtle = {version = "2.2.3", default-features = false}

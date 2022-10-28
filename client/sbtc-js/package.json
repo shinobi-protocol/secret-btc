@@ -7,16 +7,16 @@
         "build"
     ],
     "scripts": {
-        "schema": "yarn schema-treasury && yarn schema-shuriken && yarn schema-finance-admin-v1 && yarn schema-gateway && yarn schema-bitcoin-spv && yarn schema-sfps && yarn schema-log && yarn schema-token && yarn schema-multisig",
+        "schema": "npx concurrently \"yarn schema-shuriken\" \"yarn schema-gateway\" \"yarn schema-bitcoin-spv\" \"yarn schema-sfps\" \"yarn schema-log\" \"yarn schema-token\" \"yarn schema-multisig\" \"yarn schema-vesting\"",
+        "schema-serial": "yarn schema-shuriken && yarn schema-gateway && yarn schema-bitcoin-spv && yarn schema-sfps && yarn schema-log && yarn schema-token && yarn schema-multisig && yarn schema-vesting",
         "schema-shuriken": "npx quicktype -s schema ../../contracts/shuriken/schema/*.json -o src/contracts/shuriken/types.ts --lang ts && npx prettier -w src/contracts/shuriken/types.ts",
-        "schema-treasury": "npx quicktype -s schema ../../contracts/treasury/schema/*.json -o src/contracts/treasury/types.ts --lang ts && npx prettier -w src/contracts/treasury/types.ts",
-        "schema-finance-admin-v1": "npx quicktype -s schema ../../contracts/finance_admin_v1/schema/*.json -o src/contracts/finance_admin_v1/types.ts --lang ts && npx prettier -w src/contracts/finance_admin_v1/types.ts",
         "schema-gateway": "npx quicktype -s schema ../../contracts/gateway/schema/*.json -o src/contracts/gateway/types.ts --lang ts && npx prettier -w src/contracts/gateway/types.ts",
         "schema-bitcoin-spv": "npx quicktype -s schema ../../contracts/bitcoin_spv/schema/*.json -o src/contracts/bitcoin_spv/types.ts --lang ts && npx prettier -w src/contracts/bitcoin_spv/types.ts",
         "schema-sfps": "npx quicktype -s schema ../../contracts/sfps/schema/*.json -o src/contracts/sfps/types.ts --lang ts && npx prettier -w src/contracts/sfps/types.ts",
         "schema-log": "npx quicktype -s schema ../../contracts/log/schema/*.json -o src/contracts/log/types.ts --lang ts && npx prettier -w src/contracts/log/types.ts",
         "schema-token": "npx quicktype -s schema ../../contracts/token/schema/*.json -o src/contracts/token/types.ts --lang ts && npx prettier -w src/contracts/token/types.ts",
         "schema-multisig": "npx quicktype -s schema ../../contracts/multisig/schema/*.json -o src/contracts/multisig/types.ts --lang ts && npx prettier -w src/contracts/multisig/types.ts",
+        "schema-vesting": "npx quicktype -s schema ../../contracts/vesting/schema/*.json -o src/contracts/vesting/types.ts --lang ts && npx prettier -w src/contracts/vesting/types.ts",
         "build": "npx tsc",
         "test": "npx mocha --require ts-node/register ./test/*.spec.ts"
     },
@@ -27,6 +27,7 @@
         "bignumber.js": "^9.0.1",
         "bip174": "^2.0.1",
         "bitcoinjs-lib": "^5.2.0",
+        "date-fns": "^2.16.1",
         "secretjs": "@beta",
         "winston": "^3.3.3"
     },
@@ -39,6 +40,7 @@
         "@typescript-eslint/eslint-plugin": "^4.11.1",
         "@typescript-eslint/parser": "^4.11.1",
         "chai": "^4.2.0",
+        "concurrently": "^7.2.2",
         "eslint": "^7.16.0",
         "eslint-config-prettier": "^7.1.0",
         "mocha": "^8.2.1",

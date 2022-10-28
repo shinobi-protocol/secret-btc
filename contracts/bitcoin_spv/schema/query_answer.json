@@ -81,7 +81,8 @@
       "type": "object",
       "required": [
         "bitcoin_network",
-        "confirmation"
+        "confirmation",
+        "state_proxy"
       ],
       "properties": {
         "bitcoin_network": {
@@ -93,8 +94,29 @@
           "type": "integer",
           "format": "uint8",
           "minimum": 0.0
+        },
+        "state_proxy": {
+          "$ref": "#/definitions/ContractReference"
         }
       }
+    },
+    "ContractReference": {
+      "type": "object",
+      "required": [
+        "address",
+        "hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "hash": {
+          "type": "string"
+        }
+      }
+    },
+    "HumanAddr": {
+      "type": "string"
     }
   }
 }

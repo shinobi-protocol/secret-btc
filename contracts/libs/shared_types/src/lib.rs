@@ -15,6 +15,8 @@ pub mod prng;
 pub mod sfps;
 #[cfg(feature = "shuriken")]
 pub mod shuriken;
+#[cfg(feature = "state_proxy")]
+pub mod state_proxy;
 #[cfg(feature = "viewing_key")]
 pub mod viewing_key;
 
@@ -43,7 +45,7 @@ pub struct ContractReference {
     pub hash: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct CanonicalContractReference {
     pub address: CanonicalAddr,
     pub hash: String,

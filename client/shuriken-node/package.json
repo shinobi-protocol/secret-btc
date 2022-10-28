@@ -19,8 +19,7 @@
     "dotenv": "^8.2.0",
     "node-schedule": "^1.3.2",
     "regtest-client": "^0.2.0",
-    "sbtc-js": "link:../sbtc-js",
-    "typescript": "^4.1.3"
+    "sbtc-js": "link:../sbtc-js"
   },
   "devDependencies": {
     "@openapitools/openapi-generator-cli": "^2.2.5",
@@ -35,6 +34,7 @@
     "mocha": "^8.3.2",
     "nodemon": "^2.0.6",
     "prettier": "^2.2.1",
-    "ts-node": "^9.1.1"
+    "ts-node": "^9.1.1",
+    "typescript": "4.1.3"
   }
 }

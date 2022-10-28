@@ -1,4 +1,5 @@
 use crate::contract::query_bitcoin_network::query_bitcoin_network;
+use crate::contract::CONTRACT_LABEL;
 use crate::error::Error;
 use crate::state::bitcoin_utxo::gen_request_key;
 use crate::state::bitcoin_utxo::{
@@ -19,16 +20,16 @@ use bitcoin::util::address::{Address, Payload};
 use bitcoin::util::sighash::SigHashCache;
 use bitcoin::VarInt;
 use bitcoin::{OutPoint, PrivateKey, PublicKey, Script};
-use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
-    to_binary, Api, Binary, Env, Extern, HandleResponse, Querier, StdResult, Storage,
+    to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, Querier, StdResult, Storage,
 };
 use secret_toolkit::snip20;
 use secret_toolkit::utils::padding::pad_handle_result;
 use secret_toolkit::utils::{HandleCallback, Query};
 use shared_types::gateway::*;
 use shared_types::prng::update_prng;
-use shared_types::{bitcoin_spv, log, sfps, viewing_key, BLOCK_SIZE};
+use shared_types::state_proxy::client::{Secp256k1ApiSigner, StateProxyDeps, StateProxyStorage};
+use shared_types::{bitcoin_spv, log, sfps, viewing_key, ContractReference, BLOCK_SIZE};
 use std::str::FromStr;
 use std::string::ToString;
 
@@ -37,15 +38,22 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
+    let mut deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )?;
     let suspension_switch = suspension_switch(&deps.storage)?;
-    let result = match msg {
-        HandleMsg::CreateViewingKey { entropy, .. } => try_create_key(deps, env, entropy),
-        HandleMsg::SetViewingKey { key, .. } => try_set_key(deps, env, key),
+    let mut result = match msg {
+        HandleMsg::CreateViewingKey { entropy, .. } => try_create_key(&mut deps, env, entropy),
+        HandleMsg::SetViewingKey { key, .. } => try_set_key(&mut deps, env, key),
         HandleMsg::RequestMintAddress { entropy, .. } => {
             if suspension_switch.request_mint_address {
                 return Err(Error::contract_err("request mint address is being suspended").into());
             }
-            try_request_mint_address(deps, env, entropy)
+            try_request_mint_address(&mut deps, env, entropy)
         }
         HandleMsg::VerifyMintTx {
             height,
@@ -56,7 +64,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             if suspension_switch.verify_mint_tx {
                 return Err(Error::contract_err("verify mint tx is being suspended").into());
             }
-            try_verify_mint_tx(deps, env, height, tx, merkle_proof)
+            try_verify_mint_tx(&mut deps, env, height, tx, merkle_proof)
         }
         HandleMsg::ReleaseIncorrectAmountBTC {
             height,
@@ -72,7 +80,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
                 );
             }
             try_release_incorrect_amount_btc(
-                deps,
+                &mut deps,
                 env,
                 height,
                 tx,
@@ -87,7 +95,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             if suspension_switch.request_release_btc {
                 return Err(Error::contract_err("request release btc is being suspended").into());
             }
-            try_request_release_btc(deps, env, amount, entropy)
+            try_request_release_btc(&mut deps, env, amount, entropy)
         }
         HandleMsg::ClaimReleasedBtc {
             merkle_proof,
@@ -102,7 +110,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
                 return Err(Error::contract_err("claim release btc is being suspended").into());
             }
             try_claim_released_btc(
-                deps,
+                &mut deps,
                 env,
                 merkle_proof,
                 headers,
@@ -112,9 +120,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
                 fee_per_vb,
             )
         }
-        HandleMsg::ChangeOwner { new_owner } => try_change_owner(deps, env, new_owner),
+        HandleMsg::ChangeOwner { new_owner } => try_change_owner(&mut deps, env, new_owner),
         HandleMsg::SetSuspensionSwitch { suspension_switch } => {
-            try_set_suspension_switch(deps, env, suspension_switch)
+            try_set_suspension_switch(&mut deps, env, suspension_switch)
         }
         HandleMsg::ReleaseBtcByOwner {
             tx_value,
@@ -122,7 +130,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             recipient_address,
             fee_per_vb,
         } => try_release_btc_by_owner(
-            deps,
+            &mut deps,
             env,
             tx_value,
             max_input_length,
@@ -130,12 +138,21 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             fee_per_vb,
         ),
     };
+    let result = match result {
+        Ok(mut response) => {
+            response.messages = deps
+                .storage
+                .add_messages_to_state_proxy_msg(response.messages)?;
+            Ok(response)
+        }
+        Err(e) => Err(e),
+    };
     pad_handle_result(result.map_err(|e| e.into()), BLOCK_SIZE)
 }
 
 /// Same logic as SNIP20 Viewing key
-fn try_create_key<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_create_key<A: Api, Q: Querier>(
+    deps: &mut StateProxyDeps<A, Q>,
     env: Env,
     entropy: String,
 ) -> Result<HandleResponse, Error> {
@@ -161,8 +178,8 @@ fn try_create_key<S: Storage, A: Api, Q: Querier>(
 }
 
 /// Same logic as SNIP20 Viewing key
-fn try_set_key<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_set_key<A: Api, Q: Querier>(
+    deps: &mut StateProxyDeps<A, Q>,
     env: Env,
     key: viewing_key::ViewingKey,
 ) -> Result<HandleResponse, Error> {
@@ -178,13 +195,13 @@ fn try_set_key<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn try_request_mint_address<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_request_mint_address<A: Api, Q: Querier>(
+    deps: &mut StateProxyDeps<A, Q>,
     env: Env,
     entropy: Binary,
 ) -> Result<HandleResponse, Error> {
     let config = read_config(&deps.storage, &deps.api)?;
-    let network = query_bitcoin_network(&deps.querier, config.bitcoin_spv)?;
+    let network = query_bitcoin_network(deps.querier, config.bitcoin_spv)?;
 
     let mintor = deps.api.canonical_address(&env.message.sender)?;
     let mut rng = update_prng(&mut deps.storage, PREFIX_PRNG, &mintor, entropy.as_slice())?;
@@ -225,8 +242,8 @@ fn extract_vout(outputs: &[TxOut], address: &Address) -> Result<u32, Error> {
     Err(Error::contract_err("no valid tx output"))
 }
 
-fn try_verify_mint_tx<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_verify_mint_tx<A: Api, Q: Querier>(
+    deps: &mut StateProxyDeps<A, Q>,
     env: Env,
     height: u32,
     tx: Binary,
@@ -245,7 +262,7 @@ fn try_verify_mint_tx<S: Storage, A: Api, Q: Querier>(
             merkle_proof,
         })
         .query(
-            &deps.querier,
+            deps.querier,
             config.bitcoin_spv.hash.clone(),
             config.bitcoin_spv.address.clone(),
         )?
@@ -261,7 +278,7 @@ fn try_verify_mint_tx<S: Storage, A: Api, Q: Querier>(
         ))
     }?;
 
-    let network = query_bitcoin_network(&deps.querier, config.bitcoin_spv)?;
+    let network = query_bitcoin_network(deps.querier, config.bitcoin_spv)?;
     let tx: Transaction = deserialize::<Transaction>(tx.as_slice())?;
     let txid = tx.txid();
 
@@ -288,7 +305,7 @@ fn try_verify_mint_tx<S: Storage, A: Api, Q: Querier>(
         key: priv_key.key.serialize(),
     })?;
     let sbtc_total_supply = snip20::token_info_query(
-        &deps.querier,
+        deps.querier,
         BLOCK_SIZE,
         config.sbtc.hash.clone(),
         config.sbtc.address.clone(),
@@ -324,8 +341,8 @@ fn try_verify_mint_tx<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn try_release_incorrect_amount_btc<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_release_incorrect_amount_btc<A: Api, Q: Querier>(
+    deps: &mut StateProxyDeps<A, Q>,
     env: Env,
     height: u32,
     tx: Binary,
@@ -346,7 +363,7 @@ fn try_release_incorrect_amount_btc<S: Storage, A: Api, Q: Querier>(
             merkle_proof,
         })
         .query(
-            &deps.querier,
+            deps.querier,
             config.bitcoin_spv.hash.clone(),
             config.bitcoin_spv.address.clone(),
         )?
@@ -370,7 +387,7 @@ fn try_release_incorrect_amount_btc<S: Storage, A: Api, Q: Querier>(
     //
     // Validate that the tx has correct output destination and incorrect value
     //
-    let network = query_bitcoin_network(&deps.querier, config.bitcoin_spv)?;
+    let network = query_bitcoin_network(deps.querier, config.bitcoin_spv)?;
     let priv_key = read_mint_key(&deps.storage, &mintor, network)?
         .ok_or_else(|| Error::contract_err("message sender does not have mint address"))?;
     let bitcoin_address = Address::p2wpkh(&priv_key.public_key(), priv_key.network)?;
@@ -413,8 +430,8 @@ fn try_release_incorrect_amount_btc<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn try_request_release_btc<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_request_release_btc<A: Api, Q: Querier>(
+    deps: &mut StateProxyDeps<A, Q>,
     env: Env,
     amount: u64,
     entropy: Binary,
@@ -439,7 +456,7 @@ fn try_request_release_btc<S: Storage, A: Api, Q: Querier>(
     write_release_request_utxo(&mut deps.storage, &request_key, amount, utxo)?;
 
     let sbtc_total_supply = snip20::token_info_query(
-        &deps.querier,
+        deps.querier,
         BLOCK_SIZE,
         config.sbtc.hash.clone(),
         config.sbtc.address.clone(),
@@ -475,8 +492,8 @@ fn try_request_release_btc<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
-fn try_claim_released_btc<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_claim_released_btc<A: Api, Q: Querier>(
+    deps: &mut StateProxyDeps<A, Q>,
     env: Env,
     merkle_proof: sfps::MerkleProof,
     headers: Vec<sfps::Header>,
@@ -490,7 +507,7 @@ fn try_claim_released_btc<S: Storage, A: Api, Q: Querier>(
 
     // Verify Merkle Proof
     let request_key = match sfps::verify_response_deliver_tx_proof(
-        &deps.querier,
+        deps.querier,
         config.sfps,
         merkle_proof,
         headers,
@@ -503,7 +520,7 @@ fn try_claim_released_btc<S: Storage, A: Api, Q: Querier>(
     let requested_utxo = read_release_request_utxo(&deps.storage, &request_key)?
         .ok_or_else(|| Error::contract_err("No release request"))?;
 
-    let network = query_bitcoin_network(&deps.querier, config.bitcoin_spv)?;
+    let network = query_bitcoin_network(deps.querier, config.bitcoin_spv)?;
 
     let tx = sign_transaction(
         vec![txin(requested_utxo.utxo.outpoint())],
@@ -535,8 +552,8 @@ fn try_claim_released_btc<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
-fn try_change_owner<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_change_owner<A: Api, Q: Querier>(
+    deps: &mut StateProxyDeps<A, Q>,
     env: Env,
     new_owner: HumanAddr,
 ) -> Result<HandleResponse, Error> {
@@ -549,8 +566,8 @@ fn try_change_owner<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse::default())
 }
 
-fn try_set_suspension_switch<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_set_suspension_switch<A: Api, Q: Querier>(
+    deps: &mut StateProxyDeps<A, Q>,
     env: Env,
     suspension_switch: SuspensionSwitch,
 ) -> Result<HandleResponse, Error> {
@@ -562,8 +579,8 @@ fn try_set_suspension_switch<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse::default())
 }
 
-fn try_release_btc_by_owner<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn try_release_btc_by_owner<A: Api, Q: Querier>(
+    deps: &mut StateProxyDeps<A, Q>,
     env: Env,
     tx_value: u64,
     max_input_length: u64,
@@ -575,7 +592,7 @@ fn try_release_btc_by_owner<S: Storage, A: Api, Q: Querier>(
     if env.message.sender != config.owner {
         return Err(Error::contract_err("not owner"));
     }
-    let network = query_bitcoin_network(&deps.querier, config.bitcoin_spv)?;
+    let network = query_bitcoin_network(deps.querier, config.bitcoin_spv)?;
     let mut tx_inputs = Vec::with_capacity(max_input_length as usize);
     let mut priv_keys = Vec::with_capacity(max_input_length as usize);
     for _ in 0..max_input_length {
@@ -716,12 +733,13 @@ fn sign_to_tx<A: Api>(
             }
             #[cfg(test)]
             {
+                use bitcoin::secp256k1::{sign, Message};
                 // use secp256k1 pure rust library in test.
                 // sign(message, priv_key) take message and sign to the message directly.
                 // so, in order to sign to the sha256d hash of the data,
                 // you have to pass sha256d hash of the data as message.
                 let sha256d = sha256::Hash::hash(&sha256_hash[..]);
-                let message = Message::parse_slice(&sha256d[..])?;
+                let message = Message::parse(sha256d.as_inner());
                 sign(&message, &priv_key.key).0
             }
         };

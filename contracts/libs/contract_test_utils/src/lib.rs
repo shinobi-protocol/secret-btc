@@ -1,54 +1,40 @@
 use cosmwasm_std::{
-    from_binary, to_binary, to_vec, Binary, CosmosMsg, Empty, Querier, QuerierResult, QueryRequest,
-    StdError, StdResult, WasmMsg, WasmQuery,
+    from_binary, testing::MockApi, BlockInfo, Coin, ContractInfo, CosmosMsg, Env, HumanAddr,
+    MessageInfo, WasmMsg,
 };
-use serde::{de::DeserializeOwned, Serialize};
-use std::collections::HashMap;
+use serde::de::DeserializeOwned;
 use std::fmt::Debug;
 
-pub struct MockQuerier {
-    cases: HashMap<Vec<u8>, Result<Binary, String>>,
+pub mod context;
+pub mod contract_runner;
+pub mod querier;
+pub mod storage;
+
+pub fn mock_api() -> MockApi {
+    MockApi::new(20)
 }
 
-impl MockQuerier {
-    pub fn new() -> Self {
-        Self {
-            cases: HashMap::default(),
-        }
-    }
-
-    pub fn add_case<R: Serialize>(&mut self, request: WasmQuery, result: R) {
-        self.cases.insert(
-            to_vec(&QueryRequest::<Empty>::Wasm(request)).unwrap(),
-            Ok(to_binary(&result).unwrap()),
-        );
-    }
-
-    pub fn add_error_case(&mut self, request: WasmQuery, error: String) {
-        self.cases.insert(
-            to_vec(&QueryRequest::<Empty>::Wasm(request)).unwrap(),
-            Err(error),
-        );
-    }
-
-    pub fn reset_cases(&mut self) {
-        self.cases = HashMap::default();
-    }
-
-    fn mock_query(&self, bin_request: &[u8]) -> StdResult<Binary> {
-        match self.cases.get(bin_request) {
-            Some(result) => result.clone().map_err(|e| StdError::generic_err(e)),
-            None => Err(StdError::generic_err(format!(
-                "request is not in expected case: {}",
-                String::from_utf8(bin_request.to_vec()).unwrap()
-            ))),
-        }
-    }
+pub fn mock_timestamp() -> u32 {
+    1_610_794_295
 }
 
-impl Querier for MockQuerier {
-    fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
-        Ok(self.mock_query(bin_request))
+pub fn mock_env<U: Into<HumanAddr>>(sender: U, sent: &[Coin]) -> Env {
+    Env {
+        block: BlockInfo {
+            height: 12_345,
+            // change time
+            time: mock_timestamp() as u64,
+            chain_id: "cosmos-testnet-14002".to_string(),
+        },
+        message: MessageInfo {
+            sender: sender.into(),
+            sent_funds: sent.to_vec(),
+        },
+        contract: ContractInfo {
+            address: HumanAddr::from(cosmwasm_std::testing::MOCK_CONTRACT_ADDR),
+        },
+        contract_key: Some("".to_string()),
+        contract_code_hash: "".to_string(),
     }
 }
 

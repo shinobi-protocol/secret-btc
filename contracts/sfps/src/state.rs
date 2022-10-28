@@ -1,7 +1,7 @@
 use cosmwasm_std::StdError;
 use cosmwasm_std::{ReadonlyStorage, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
-use secret_toolkit::storage::{AppendStore, AppendStoreMut};
+use secret_toolkit::storage::AppendStore;
 use sfps_lib::light_client::{LightClientDB, ReadonlyLightClientDB};
 use sfps_lib::subsequent_hashes::HeaderHashWithHeight;
 use std::collections::HashMap;
@@ -50,9 +50,9 @@ impl<S: ReadonlyStorage> ReadonlyLightClientDB for StorageLightClientDB<S> {
         match self.hash_by_index_cache.get(&index) {
             Some(hash) => Some(hash.clone()),
             None => {
-                let storage = ReadonlyPrefixedStorage::new(PREFIX_BLOCK_HASH, &self.storage);
-                let storage = AppendStore::attach(&storage)?.ok()?;
-                let hash: HeaderHashWithHeight = storage.get_at(index as u32).ok()?;
+                let storage = AppendStore::<HeaderHashWithHeight>::new(PREFIX_BLOCK_HASH);
+                let hash: HeaderHashWithHeight =
+                    storage.get_at(&self.storage, index as u32).ok()?;
                 self.hash_by_index_cache.insert(index, hash.clone());
                 Some(hash)
             }
@@ -62,11 +62,15 @@ impl<S: ReadonlyStorage> ReadonlyLightClientDB for StorageLightClientDB<S> {
         match &self.highest_hash_cache {
             Some(hash) => Some(hash.clone()),
             None => {
-                let storage = ReadonlyPrefixedStorage::new(PREFIX_BLOCK_HASH, &self.storage);
-                let storage = AppendStore::attach(&storage)?.ok()?;
-                let hash: Option<HeaderHashWithHeight> = storage.get_at(storage.len() - 1).ok();
-                self.highest_hash_cache = hash.clone();
-                hash
+                let storage = AppendStore::<HeaderHashWithHeight>::new(PREFIX_BLOCK_HASH);
+                if let Some(len) = storage.get_len(&self.storage).ok() {
+                    let hash: Option<HeaderHashWithHeight> =
+                        storage.get_at(&self.storage, len - 1).ok();
+                    self.highest_hash_cache = hash.clone();
+                    hash
+                } else {
+                    None
+                }
             }
         }
     }
@@ -74,17 +78,11 @@ impl<S: ReadonlyStorage> ReadonlyLightClientDB for StorageLightClientDB<S> {
         match self.hash_list_length_cache {
             Some(length) => length,
             None => {
-                let storage = ReadonlyPrefixedStorage::new(PREFIX_BLOCK_HASH, &self.storage);
-                if let Some(result) =
-                    AppendStore::<HeaderHashWithHeight, ReadonlyPrefixedStorage<S>>::attach(
-                        &storage,
-                    )
-                {
-                    if let Ok(storage) = result {
-                        let length = storage.len() as usize;
-                        self.hash_list_length_cache = Some(length);
-                        return length;
-                    }
+                let store = AppendStore::<HeaderHashWithHeight>::new(PREFIX_BLOCK_HASH);
+                if let Ok(length) = store.get_len(&self.storage) {
+                    let length = length as usize;
+                    self.hash_list_length_cache = Some(length);
+                    return length;
                 }
                 0
             }
@@ -116,9 +114,8 @@ impl<S: Storage> LightClientDB for StorageLightClientDB<S> {
         self.hash_by_index_cache.insert(index, block_hash.clone());
         self.hash_list_length_cache = Some(index + 1);
         self.highest_hash_cache = Some(block_hash.clone());
-        let mut storage = PrefixedStorage::new(PREFIX_BLOCK_HASH, &mut self.storage);
-        let mut storage = AppendStoreMut::attach_or_create(&mut storage)?;
-        Ok(storage.push(&block_hash)?)
+        let store = AppendStore::<HeaderHashWithHeight>::new(PREFIX_BLOCK_HASH);
+        Ok(store.push(&mut self.storage, &block_hash)?)
     }
     fn store_max_interval(&mut self, max_interval: u64) -> Result<(), Self::Error> {
         self.max_interval_cache = Some(max_interval);

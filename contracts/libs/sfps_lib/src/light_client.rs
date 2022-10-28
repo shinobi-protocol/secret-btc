@@ -26,6 +26,8 @@ pub enum Error {
     LightBlock(LightBlockError),
     ResponseDeliverTxProof(ResponseDeliverTxProofError),
     SubsequentHashes(SubsequentHashesError),
+    AnchorHashNotFound,
+    AnchorHeaderUnmatched,
 }
 
 impl std::fmt::Display for Error {
@@ -44,6 +46,8 @@ impl std::fmt::Display for Error {
             Error::LightBlock(e) => write!(f, "light block error: {}", e),
             Error::ResponseDeliverTxProof(e) => write!(f, "tx result proof error: {}", e),
             Error::SubsequentHashes(e) => write!(f, "subsequent hashes error: {}", e),
+            Error::AnchorHashNotFound => f.write_str("anchor hash not found"),
+            Error::AnchorHeaderUnmatched => f.write_str("anchor header unmatched"),
         }
     }
 }
@@ -106,26 +110,26 @@ impl<C: ReadonlyLightClientDB> LightClient<C> {
 
     pub fn verify_subsequent_light_blocks<S: ToString, E: Ed25519Verifier<S>>(
         &mut self,
-        mut current_highest_header: Header,
-        light_blocks: Vec<LightBlock>,
+        mut anchor_header: Header,
+        anchor_header_index: usize,
+        following_light_blocks: Vec<LightBlock>,
         commit_flags: Vec<bool>,
         ed25519_verifier: &mut E,
     ) -> Result<CommittedHashes, Error> {
-        let first_hash = hash_header(&current_highest_header);
-        let current_highest_hash = self
+        let recorded_anchor_hash = self
             .db
-            .get_highest_hash()
-            .ok_or(Error::NoHighestHeaderHash)?;
-        if first_hash != current_highest_hash.hash {
-            return Err(Error::InvalidCurrentHighestHeader);
+            .get_hash_by_index(anchor_header_index)
+            .ok_or(Error::AnchorHashNotFound)?;
+        if hash_header(&anchor_header) != recorded_anchor_hash.hash {
+            return Err(Error::AnchorHeaderUnmatched);
         }
-        if light_blocks.len() != commit_flags.len() {
+        if following_light_blocks.len() != commit_flags.len() {
             return Err(Error::InvalidCommitFlagsLength);
         }
-        let mut validators_hash = current_highest_header.next_validators_hash;
+        let mut validators_hash = anchor_header.next_validators_hash;
         let mut following_hashes = Vec::new();
         let max_interval = self.db.get_max_interval();
-        for (i, light_block) in light_blocks.iter().enumerate() {
+        for (i, light_block) in following_light_blocks.iter().enumerate() {
             self.verify_block(&validators_hash, &light_block, ed25519_verifier)?;
             let header = light_block
                 .signed_header
@@ -136,7 +140,7 @@ impl<C: ReadonlyLightClientDB> LightClient<C> {
                 .unwrap();
             let actual_interval: u64 = header
                 .height
-                .checked_sub(current_highest_header.height)
+                .checked_sub(anchor_header.height)
                 .unwrap()
                 .try_into()
                 .unwrap();
@@ -152,13 +156,14 @@ impl<C: ReadonlyLightClientDB> LightClient<C> {
                     hash: hash_header(header),
                     height: header.height,
                 });
-                current_highest_header = header.clone();
+                anchor_header = header.clone();
             }
             validators_hash = header.next_validators_hash.clone();
         }
         Ok(CommittedHashes::new(
             Hashes {
-                first_hash,
+                anchor_hash: recorded_anchor_hash.hash,
+                anchor_index: anchor_header_index as u64,
                 following_hashes,
             },
             &self.db.get_commit_secret(),
@@ -210,14 +215,24 @@ impl<C: LightClientDB> LightClient<C> {
         committed_hashes: CommittedHashes,
     ) -> Result<(), Error> {
         committed_hashes.verify(&self.db.get_commit_secret())?;
-        let db_highest_hash = self
+        let stored_anchor_hash = self
+            .db
+            .get_hash_by_index(committed_hashes.hashes.anchor_index as usize)
+            .ok_or(Error::AnchorHashNotFound)?;
+        if stored_anchor_hash.hash != committed_hashes.hashes.anchor_hash {
+            return Err(Error::AnchorHeaderUnmatched);
+        }
+        let current_highest_hash_height = self
             .db
             .get_highest_hash()
-            .ok_or(Error::NoHighestHeaderHash)?;
-        if committed_hashes.hashes.first_hash != db_highest_hash.hash {
-            return Err(Error::InvalidHighestHash);
-        }
-        for hash in committed_hashes.hashes.following_hashes {
+            .ok_or(Error::NoHighestHeaderHash)?
+            .height;
+        let appending_hashes = committed_hashes
+            .hashes
+            .following_hashes
+            .into_iter()
+            .skip_while(|x| x.height <= current_highest_hash_height);
+        for hash in appending_hashes {
             self.db
                 .append_block_hash(hash)
                 .map_err(|e| Error::LightClientDB(e.to_string()))?;

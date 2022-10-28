@@ -1,7 +1,8 @@
 use cosmwasm_std::{Api, CanonicalAddr, ReadonlyStorage, StdError, StdResult, Storage};
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
-use secret_toolkit::storage::{TypedStore, TypedStoreMut};
-use shared_types::log::{event::serde_event_on_storage, Config, Event};
+use secret_toolkit::serialization::Bincode2;
+use secret_toolkit::storage::Item;
+use shared_types::log::{event::serde_event_on_storage, CanonicalConfig, Config, Event};
 use shared_types::Canonicalize;
 use std::convert::TryInto;
 
@@ -12,14 +13,14 @@ pub const PREFIX_VIEWING_KEY: &[u8] = b"viewing_key";
 pub const LEN_KEY: &[u8] = b"len";
 
 pub fn read_config<S: ReadonlyStorage, A: Api>(storage: &S, api: &A) -> StdResult<Config> {
-    let store = TypedStore::attach(storage);
-    let canonical = store.load(CONFIG_KEY)?;
+    let store = Item::<CanonicalConfig, Bincode2>::new(CONFIG_KEY);
+    let canonical = store.load(storage)?;
     Config::from_canonical(canonical, api)
 }
 
 pub fn write_config<S: Storage, A: Api>(storage: &mut S, config: Config, api: &A) -> StdResult<()> {
-    let mut store = TypedStoreMut::attach(storage);
-    store.store(CONFIG_KEY, &config.into_canonical(api)?)
+    let store = Item::<CanonicalConfig, Bincode2>::new(CONFIG_KEY);
+    store.save(storage, &config.into_canonical(api)?)
 }
 
 /// Log Storage.

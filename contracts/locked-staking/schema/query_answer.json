@@ -1,0 +1,149 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryAnswer",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "latest_i_d"
+      ],
+      "properties": {
+        "latest_i_d": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "vesting_infos"
+      ],
+      "properties": {
+        "vesting_infos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/VestingInfo"
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "account_infos"
+      ],
+      "properties": {
+        "account_infos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/VestingInfo"
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "vesting_summary"
+      ],
+      "properties": {
+        "vesting_summary": {
+          "$ref": "#/definitions/VestingSummary"
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "ContractReference": {
+      "type": "object",
+      "required": [
+        "address",
+        "hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "hash": {
+          "type": "string"
+        }
+      }
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Uint128": {
+      "type": "string"
+    },
+    "VestingInfo": {
+      "type": "object",
+      "required": [
+        "claimed_amount",
+        "end_time",
+        "id",
+        "locked_amount",
+        "locker",
+        "recipient",
+        "remaining_amount",
+        "start_time",
+        "token"
+      ],
+      "properties": {
+        "claimed_amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "end_time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "id": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "locked_amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "locker": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "recipient": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "remaining_amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "start_time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "token": {
+          "$ref": "#/definitions/ContractReference"
+        }
+      }
+    },
+    "VestingSummary": {
+      "type": "object",
+      "required": [
+        "total_claimed",
+        "total_locked",
+        "total_remaining"
+      ],
+      "properties": {
+        "total_claimed": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "total_locked": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "total_remaining": {
+          "$ref": "#/definitions/Uint128"
+        }
+      }
+    }
+  }
+}

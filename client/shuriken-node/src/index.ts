@@ -8,26 +8,31 @@ import { addSeconds } from 'date-fns';
 import BtcRpcClient from './BtcRpcClient';
 import BtcClientInterface from './BtcClientInterface';
 import RegtestUtilClient from './RegtestUtilClient';
-import { TendermintRPCClient } from 'sbtc-js/build/TendermintRPCClient';
 import { BitcoinSPVClient } from 'sbtc-js/build/contracts/bitcoin_spv/BitcoinSPVClient';
 import { createLogger, transports, format, Logger } from 'winston';
 import BtcSyncClient from './BtcSyncClient';
-import TendermintSyncClient from './TendermintSyncClient';
-import { SecretNetworkClient, Wallet } from 'sbtc-js/node_modules/secretjs';
+import SFPSSyncClient from './SFPSSyncClient';
+import { Wallet } from 'sbtc-js/node_modules/secretjs';
 import { SFPSClient } from 'sbtc-js/build/contracts/sfps/SFPSClient';
 import { ShurikenClient } from 'sbtc-js/build/contracts/shuriken/ShurikenClient';
+import ShinobiClient from 'sbtc-js/build/ShinobiClient';
 
 config({ path: process.env.ENV_FILE || '.env' });
 
-const initSecretNetworkClient = async (): Promise<SecretNetworkClient> => {
-    console.log('initializing secret network client...');
+const initShinobiClient = async (): Promise<ShinobiClient> => {
+    console.log('initializing shinobi client...');
     const grpcWebUrl = process.env.GRPC_WEB_URL!;
     const mnemonic = process.env.MNEMONIC!;
     const chainId = process.env.CHAIN_ID!;
     console.log('grpcWebUrl', grpcWebUrl);
     const wallet = new Wallet(mnemonic);
-    const client = await SecretNetworkClient.create({ grpcWebUrl, wallet, chainId, walletAddress: wallet.address });
-    await client.query.auth.account({ address: client.address });
+    const client = await ShinobiClient.create(
+        grpcWebUrl,
+        chainId,
+        wallet,
+        wallet.address
+    );
+    await client.sn.query.auth.account({ address: client.sn.address });
     console.log('Successfully connected to Secret Network');
     return client;
 };
@@ -39,7 +44,7 @@ interface ContractClients {
 }
 
 const initContractClients = async (
-    secretNetworkClient: SecretNetworkClient,
+    shinoboClient: ShinobiClient,
     logger: Logger
 ): Promise<ContractClients> => {
     console.log('initializing contract clients...');
@@ -48,19 +53,19 @@ const initContractClients = async (
 
     const shurikenClient = new ShurikenClient(
         shurikenAddress,
-        secretNetworkClient,
+        shinoboClient,
         logger
     );
     const config = await shurikenClient.config();
     console.log('Successfully connected to Shuriken Contract');
     const bitcoinSPVClient = new BitcoinSPVClient(
         config.bitcoin_spv.address,
-        secretNetworkClient,
+        shinoboClient,
         logger
     );
     const sfpsClient = new SFPSClient(
         config.sfps.address,
-        secretNetworkClient,
+        shinoboClient,
         logger
     );
     return { shurikenClient, bitcoinSPVClient, sfpsClient };
@@ -98,18 +103,14 @@ const initBtcClient = async (): Promise<BtcClientInterface> => {
     return client;
 };
 
-const initTendermintClient = (): TendermintRPCClient => {
-    return new TendermintRPCClient(process.env.TENDERMINT_RPC_URL!);
-};
-
 const job = async (
     btcSyncClient: BtcSyncClient,
-    tendermintSyncClient: TendermintSyncClient
+    sfpsSyncClient: SFPSSyncClient
 ) => {
     await btcSyncClient.syncBitcoinHeaders();
-    await tendermintSyncClient.syncTendermintHeaders();
+    await sfpsSyncClient.syncSFPSHeaders();
     scheduleJob(addSeconds(new Date(), 10), (): void => {
-        void job(btcSyncClient, tendermintSyncClient);
+        void job(btcSyncClient, sfpsSyncClient);
     });
 };
 
@@ -131,13 +132,12 @@ const main = async () => {
         format: format.combine(format.simple(), format.timestamp()),
     });
     const btcClient = await initBtcClient();
-    const secretNetworkClient = await initSecretNetworkClient();
+    const shinobiClient = await initShinobiClient();
     const {
         shurikenClient,
         bitcoinSPVClient,
         sfpsClient,
-    } = await initContractClients(secretNetworkClient, logger);
-    const tendermintClient = initTendermintClient();
+    } = await initContractClients(shinobiClient, logger);
     const btcSyncClient = new BtcSyncClient(
         shurikenClient,
         bitcoinSPVClient,
@@ -145,14 +145,13 @@ const main = async () => {
         100,
         logger
     );
-    const tendermintSyncClient = new TendermintSyncClient(
+    const sfpsSyncClient = new SFPSSyncClient(
         shurikenClient,
         sfpsClient,
-        tendermintClient,
-        5,
+        parseInt(process.env.SFPS_BLOCK_PER_TX!),
         logger
     );
-    await job(btcSyncClient, tendermintSyncClient);
+    await job(btcSyncClient, sfpsSyncClient);
 };
 
 main().catch((err) => {

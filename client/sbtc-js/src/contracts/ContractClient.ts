@@ -2,26 +2,33 @@
 
 import { ContractInfo, SecretNetworkClient, Tx } from 'secretjs';
 import { Logger } from 'winston';
+import ShinobiClient from '../ShinobiClient';
 
 export class ExecuteError<HANDLE_MSG> extends Error {
-    public tx: Tx;
-    public contractAddress: string;
-    public contractInfo: ContractInfo;
-    public msg: HANDLE_MSG;
-    public errorMsg: string;
-
-    constructor(tx: Tx, contractAddress: string, contractInfo: ContractInfo, msg: HANDLE_MSG, errorMsg: string) {
+    constructor(
+        public tx: Tx,
+        public contractAddress: string,
+        public contractInfo: ContractInfo,
+        public msg: HANDLE_MSG,
+        public errorMsg: string
+    ) {
         super(errorMsg);
-        this.tx = tx;
-        this.contractAddress = contractAddress;
-        this.contractInfo = contractInfo;
-        this.msg = msg;
-        this.errorMsg = errorMsg;
+    }
+}
+
+export class QueryError<QUERY_MSG> extends Error {
+    constructor(
+        public contractAddress: string,
+        public contractInfo: ContractInfo,
+        public msg: QUERY_MSG,
+        public error: object
+    ) {
+        super(JSON.stringify(error));
     }
 }
 
 export interface ExecuteResult<HANDLE_MSG, ANSWER> {
-    tx: Tx,
+    tx: Tx;
     contractAddress: string;
     contractInfo: ContractInfo;
     msg: HANDLE_MSG;
@@ -34,40 +41,45 @@ interface PaddingMsg {
 }
 
 const REQUEST_MSG_BLOCK_SIZE = 256;
-const DEFAULT_GAS_PRICE = 0.25;
+const DEFAULT_GAS_PRICE = 0.0125;
 
 export abstract class ContractClient<
     HANDLE_MSG extends PaddingMsg,
     QUERY_MSG extends PaddingMsg,
     QUERY_ANSWER extends object
-    > {
+> {
     public contractAddress: string;
     public contractInfo: Promise<ContractInfo>;
     public codeHash: Promise<string>;
+    public shinobiClient: ShinobiClient;
     public secretNetworkClient: SecretNetworkClient;
     public gasPrice: number;
     protected logger: Logger;
 
     constructor(
         contractAddress: string,
-        secretNetworkClient: SecretNetworkClient,
+        shinobiClient: ShinobiClient,
         logger: Logger,
         gasPrice = DEFAULT_GAS_PRICE
     ) {
         this.contractAddress = contractAddress;
-        this.secretNetworkClient = secretNetworkClient;
+        this.shinobiClient = shinobiClient;
         this.contractInfo = (async () => {
-            let contractInfoResponse = await secretNetworkClient.query.compute.contractInfo(contractAddress);
+            let contractInfoResponse =
+                await shinobiClient.sn.query.compute.contractInfo(
+                    contractAddress
+                );
             return contractInfoResponse.ContractInfo;
         })();
         this.codeHash =
-            secretNetworkClient.query.compute.contractCodeHash(contractAddress)
+            shinobiClient.sn.query.compute.contractCodeHash(contractAddress);
+        this.secretNetworkClient = shinobiClient.sn;
         this.gasPrice = gasPrice;
         this.logger = logger;
     }
 
     public senderAddress(): string {
-        return this.secretNetworkClient.address;
+        return this.shinobiClient.sn.address;
     }
 
     protected async execute<ANSWER>(
@@ -81,26 +93,41 @@ export abstract class ContractClient<
             message:
                 'Execute Start: ' +
                 JSON.stringify(paddedMsg) +
-                '\nGasLimit: ' + gasLimit
+                '\nGasLimit: ' +
+                gasLimit,
         });
-        const result = await this.secretNetworkClient.tx.compute.executeContract(
+        const result = await this.shinobiClient.sn.tx.compute.executeContract(
             {
-                sender: this.secretNetworkClient.address,
+                sender: this.shinobiClient.sn.address,
                 contractAddress: this.contractAddress,
                 codeHash: await this.codeHash,
                 msg,
-            }, {
-            gasLimit
-        }
+            },
+            {
+                gasLimit,
+                gasPriceInFeeDenom: this.gasPrice,
+            }
         );
         if (result.code !== 0) {
             console.log(result);
-            throw new ExecuteError(result, this.contractAddress, await this.contractInfo, msg, result.rawLog);
+            throw new ExecuteError(
+                result,
+                this.contractAddress,
+                await this.contractInfo,
+                msg,
+                result.rawLog
+            );
         }
-        const answer = parseAnswer(new TextDecoder().decode(result.data[0] as Uint8Array));
+        const answer = parseAnswer(
+            new TextDecoder().decode(result.data[0] as Uint8Array)
+        );
         this.logger.log({
             level: 'info',
-            message: `Execute Succeed\ntxhash: ${result.transactionHash}\ngasUsed/gasWanted: ${result.gasUsed}/${result.gasWanted}\nanswer:${JSON.stringify(answer)}`
+            message: `Execute Succeed\ntxhash: ${
+                result.transactionHash
+            }\ngasUsed/gasWanted: ${result.gasUsed}/${
+                result.gasWanted
+            }\nanswer:${JSON.stringify(answer)}`,
         });
         return {
             tx: result,
@@ -111,7 +138,10 @@ export abstract class ContractClient<
         };
     }
 
-    protected async query(queryMsg: QUERY_MSG): Promise<QUERY_ANSWER> {
+    protected async query<R>(
+        queryMsg: QUERY_MSG,
+        parseAnswer: (answer: QUERY_ANSWER) => R
+    ): Promise<R> {
         const paddedMsg = this.padMsg(queryMsg);
         this.logger.log({
             level: 'info',
@@ -119,6 +149,7 @@ export abstract class ContractClient<
         });
         const maxTry = 5;
         let error: Error;
+        let result;
         for (let tryCount = 0; tryCount < maxTry; tryCount++) {
             this.logger.log({
                 level: 'info',
@@ -129,32 +160,46 @@ export abstract class ContractClient<
             await new Promise((resolve) => setTimeout(resolve, waitTime));
             try {
                 // Query
-                const result =
-                    await this.secretNetworkClient.query.compute.queryContract<QUERY_MSG, QUERY_ANSWER>({
-                        contractAddress:
-                            this.contractAddress,
+                result =
+                    await this.shinobiClient.sn.query.compute.queryContract<
+                        QUERY_MSG,
+                        QUERY_ANSWER
+                    >({
+                        contractAddress: this.contractAddress,
                         codeHash: await this.codeHash,
                         query: paddedMsg,
-                    }
-                    );
-                this.logger.log({
-                    level: 'info',
-                    message: 'Query Succeed: ' + JSON.stringify(result),
-                });
-                return result;
+                    });
+                break;
             } catch (e) {
                 // catch error
                 error = e as Error;
                 this.logger.log({
                     level: 'info',
-                    message: `Query catch error: ${error.message}`,
+                    message: `Query network error: ${error.message}`,
                 });
+            }
+        }
+        if (result) {
+            try {
+                const answer = parseAnswer(result);
+                this.logger.log({
+                    level: 'info',
+                    message: 'Query Succeed: ' + JSON.stringify(result),
+                });
+                return answer;
+            } catch (_) {
+                throw new QueryError(
+                    this.contractAddress,
+                    await this.contractInfo,
+                    paddedMsg,
+                    result
+                );
             }
         }
         // After tried for maxTry times, throw the last error
         this.logger.log({
             level: 'info',
-            message: 'Query throw error:',
+            message: 'Query Timed out',
         });
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         throw error!;
@@ -201,6 +246,4 @@ export abstract class ContractClient<
     private msgSize<T extends HANDLE_MSG | QUERY_MSG>(msg: T): number {
         return JSON.stringify(msg).length;
     }
-
-
 }

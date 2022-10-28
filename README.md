@@ -6,6 +6,24 @@ See [/client/shuriken-node](./client/shuriken-node)
 
 ## Play with it on local with regtest bitcoin network
 
+### 0. Preparation
+
+#### Git LFS
+
+```bash
+  brew install git-lfs # See also https://docs.github.com/ja/repositories/working-with-files/managing-large-files/installing-git-large-file-storage
+  git lfs install
+  git lfs pull
+```
+
+#### WASM
+
+```bash
+  rustup target add wasm32-unknown-unknown
+  cargo install cargo-wasm
+  yarn global add wasm-opt
+```
+
 ### 1. Compile the contract to wasm
 
 ```bash
@@ -59,6 +77,9 @@ Shuriken node uploads block information of bitcoin and secret network to contrac
 
 `make shuriken-node-local`
 
+### 5. Run frontend
+
+`make sbtc-interface-local`
 #### Interact with the regtest bitcoin network
 
 Use `bitcoin-cli` in the docker container

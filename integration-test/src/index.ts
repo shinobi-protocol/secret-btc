@@ -1,39 +1,37 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { assert } from 'chai';
+import * as datefns from 'date-fns';
 import { BigNumber } from 'sbtc-js';
 import { LogClient } from 'sbtc-js/build/contracts/log/LogClient';
 import { GatewayClient } from 'sbtc-js/build/contracts/gateway/GatewayClient';
 import { HandleMsg as GatewayHandleMsg } from 'sbtc-js/build/contracts/gateway/types';
 import { ShurikenClient } from 'sbtc-js/build/contracts/shuriken/ShurikenClient';
 import { MultisigClient } from 'sbtc-js/build/contracts/multisig/MultisigClient';
+import VestingClient from 'sbtc-js/build/contracts/vesting/VestingClient';
 import { HandleMsg as MultisigHandleMsg } from 'sbtc-js/build/contracts/multisig/types';
 import { networks } from 'sbtc-js/build/contracts/bitcoin_spv/BitcoinSPVClient';
-import { EncryptionUtilsImpl, Wallet, SecretNetworkClient } from 'sbtc-js/node_modules/secretjs';
-import axios from 'axios';
+import { Wallet } from 'sbtc-js/node_modules/secretjs';
 import RegtestUtilClient from 'shuriken-node/build/RegtestUtilClient';
 import BtcSyncClient from 'shuriken-node/build/BtcSyncClient';
-import TendermintSyncClient from 'shuriken-node/build/TendermintSyncClient';
+import SFPSSyncClient from 'shuriken-node/build/SFPSSyncClient';
 import { MerkleTree } from 'sbtc-js/build/contracts/bitcoin_spv/BitcoinMerkleTree';
-import { TendermintRPCClient } from 'sbtc-js/build/TendermintRPCClient';
-import { MerkleProof } from 'sbtc-js/build/contracts/sfps/TendermintMerkleTree';
 import { address, Transaction } from 'bitcoinjs-lib';
 import { createLogger, transports, format } from 'winston';
 import { FeeReportRenderer, FileWriter } from './FeeReportRenderer';
 import { ExecuteResult } from 'sbtc-js/build/contracts/ContractClient';
 import { randomBytes } from 'crypto';
+import ShinobiClient from 'sbtc-js/build/ShinobiClient';
 import { TokenClient } from 'sbtc-js/build/contracts/token/TokenClient';
 
 class FeeReporter {
+    executeResults: ExecuteResult<any, any>[] = [];
     private feeReportRenderer: FeeReportRenderer;
-    constructor(
-        feeReportRenderer: FeeReportRenderer,
-    ) {
+    constructor(feeReportRenderer: FeeReportRenderer) {
         this.feeReportRenderer = feeReportRenderer;
     }
     public async report(executeResult: ExecuteResult<any, any>): Promise<void> {
-        this.feeReportRenderer.writeRow(
-            executeResult,
-        );
+        this.executeResults.push(executeResult);
+        this.feeReportRenderer.writeRow(executeResult);
     }
 }
 
@@ -43,35 +41,28 @@ class FeeReporter {
 const regtestServerUrl = process.env.REGTEST_SERVER_URL!;
 const grpcWebUrl = process.env.GRPC_WEB_URL!;
 const chainId = process.env.CHAIN_ID!;
-const tendermintRpcUrl = process.env.TENDERMINT_RPC_URL!;
 const mnemonic = process.env.MNEMONIC!;
 const feeReportFilePath = process.env.FEE_REPORT_FILE_PATH!;
 const logAddress = process.env.LOG_ADDRESS!;
 const gatewayAddress = process.env.GATEWAY_ADDRESS!;
 const snbAddress = process.env.SNB_ADDRESS!;
-const treasuryAddress = process.env.TREASURY_ADDRESS!;
 const shurikenAddress = process.env.SHURIKEN_ADDRESS!;
+const vestingAddress = process.env.VESTING_ADDRESS!;
 const receiveAddress = process.env.RECEIVE_ADDRESS!;
-
-const tendermintClient = new TendermintRPCClient(tendermintRpcUrl);
 
 void (async () => {
     /**
      *  SETUP
      */
-    const regtestUtilClient = new RegtestUtilClient();
+    const regtestUtilClient = new RegtestUtilClient(regtestServerUrl);
     // Setup Contract Clients
     const wallet = new Wallet(mnemonic);
-    const querier = (await SecretNetworkClient.create({
-        grpcWebUrl, chainId
-    }
-    )).query;
-    const encryptionUtils = new EncryptionUtilsImpl(querier.registration, undefined, chainId)
-    const secretNetworkClient = await SecretNetworkClient.create({
-        grpcWebUrl, chainId, wallet, walletAddress: wallet.address, encryptionUtils
-    }
+    const shinobiClient = await ShinobiClient.create(
+        grpcWebUrl,
+        chainId,
+        wallet,
+        wallet.address
     );
-
 
     const logger = createLogger({
         transports: [new transports.Console()],
@@ -79,64 +70,147 @@ void (async () => {
     });
     const gatewayClient = new GatewayClient(
         gatewayAddress,
-        secretNetworkClient,
-        logger
-    );
-    const snbClient = new TokenClient(
-        snbAddress,
-        secretNetworkClient,
+        shinobiClient,
         logger
     );
     const shurikenClient = new ShurikenClient(
         shurikenAddress,
-        secretNetworkClient,
+        shinobiClient,
         logger
     );
-    const logClient = new LogClient(logAddress, secretNetworkClient, logger);
+    const logClient = new LogClient(logAddress, shinobiClient, logger);
     const sbtcClient = await gatewayClient.sbtcClient();
+    const snbClient = new TokenClient(snbAddress, shinobiClient, logger);
     const sfpsClient = await gatewayClient.sfpsClient();
     const bitcoinSPVClient = await gatewayClient.bitcoinSPVClient();
-    const financeAdminClient = await gatewayClient.financeAdminClient();
     const gatewayConfig = await gatewayClient.config();
     const multisigClient = new MultisigClient(
         gatewayConfig.ownerAddress,
-        secretNetworkClient,
+        shinobiClient,
         logger
     );
-    console.log(await financeAdminClient.config());
-    console.log(
-        await financeAdminClient.mintReward(
-            secretNetworkClient.address,
-            new BigNumber(1),
-            new BigNumber(1000),
-            await sbtcClient.unitConverter()
-        )
+    const vestingClient = new VestingClient(
+        vestingAddress,
+        shinobiClient,
+        logger
     );
 
     // Setup Fee Reporter
     const feeReporter = new FeeReporter(
-        new FeeReportRenderer(new FileWriter(feeReportFilePath)),
+        new FeeReportRenderer(new FileWriter(feeReportFilePath))
     );
 
     // Set Viewing Keys
     await feeReporter.report(await sbtcClient.setViewingKey('viewing key'));
+    await feeReporter.report(await snbClient.setViewingKey('viewing key'));
     await feeReporter.report(await gatewayClient.setViewingKey('viewing key'));
     await feeReporter.report(await logClient.setViewingKey('viewing key'));
 
     const initialBalance = await sbtcClient.getBalance();
     const btcTxValue = gatewayConfig.btcTxValues[0];
 
+    // Vesting Tokens
+    const lockAmount = new BigNumber(1000);
+    const unitConverter = await snbClient.unitConverter();
+    const endTime = datefns.add(new Date(), { hours: 1 });
+    await feeReporter.report(
+        await vestingClient.lock(
+            snbClient,
+            lockAmount,
+            endTime,
+            shinobiClient.sn.address
+        )
+    );
+
+    const latestID = await vestingClient.latestID();
+    assert.equal(latestID, 0);
+    console.log(
+        feeReporter.executeResults[feeReporter.executeResults.length - 1].tx
+            .timestamp
+    );
+    const startTime = datefns.parseISO(
+        feeReporter.executeResults[feeReporter.executeResults.length - 1].tx
+            .timestamp
+    );
+    assert.deepEqual((await vestingClient.vestingInfos([latestID]))[0], {
+        id: latestID,
+        token: {
+            address: snbClient.contractAddress,
+            hash: await snbClient.codeHash,
+        },
+        locker: shinobiClient.sn.address,
+        recipient: shinobiClient.sn.address,
+        start_time: datefns.getUnixTime(startTime),
+        end_time: datefns.getUnixTime(endTime),
+        locked_amount: unitConverter.unitToContractValue(lockAmount),
+        claimed_amount: '0',
+        remaining_amount: unitConverter.unitToContractValue(lockAmount),
+    });
+    assert.deepEqual(
+        await vestingClient.vestingSummary(snbClient.contractAddress),
+        {
+            total_claimed: '0',
+            total_locked: unitConverter.unitToContractValue(lockAmount),
+            total_remaining: unitConverter.unitToContractValue(lockAmount),
+        }
+    );
+
+    const beforeClaim = await snbClient.getBalance();
+    await feeReporter.report(await vestingClient.claim(latestID));
+    const afterClaim = await snbClient.getBalance();
+
+    const claimedAmount = new BigNumber(
+        datefns.differenceInSeconds(
+            datefns.parseISO(
+                feeReporter.executeResults[
+                    feeReporter.executeResults.length - 1
+                ].tx.timestamp
+            ),
+            startTime
+        )
+    )
+        .shiftedBy(8)
+        .div(new BigNumber(datefns.differenceInSeconds(endTime, startTime)))
+        .integerValue(BigNumber.ROUND_DOWN)
+        .multipliedBy(1000)
+        .shiftedBy(8)
+        .shiftedBy(-8)
+        .integerValue()
+        .shiftedBy(-8);
+    console.log('claimed', claimedAmount.toString());
+    console.log('beforeClaim', beforeClaim.toString());
+    console.log('afterClaim', afterClaim.toString());
+
+    assert.deepEqual(afterClaim.minus(beforeClaim), claimedAmount);
+    const remainingAmount = lockAmount.minus(claimedAmount);
+    assert.deepEqual((await vestingClient.vestingInfos([latestID]))[0], {
+        id: latestID,
+        token: {
+            address: snbClient.contractAddress,
+            hash: await snbClient.codeHash,
+        },
+        locker: shinobiClient.sn.address,
+        recipient: shinobiClient.sn.address,
+        start_time: datefns.getUnixTime(startTime),
+        end_time: datefns.getUnixTime(endTime),
+        locked_amount: unitConverter.unitToContractValue(lockAmount),
+        claimed_amount: unitConverter.unitToContractValue(claimedAmount),
+        remaining_amount: unitConverter.unitToContractValue(remainingAmount),
+    });
+    assert.deepEqual(
+        await vestingClient.vestingSummary(snbClient.contractAddress),
+        {
+            total_claimed: unitConverter.unitToContractValue(claimedAmount),
+            total_locked: unitConverter.unitToContractValue(lockAmount),
+            total_remaining: unitConverter.unitToContractValue(remainingAmount),
+        }
+    );
+
     // Increase Allowances
     await feeReporter.report(
         await sbtcClient.increaseAllowance(
             gatewayClient.contractAddress,
             await sbtcClient.maxValue()
-        )
-    );
-    await feeReporter.report(
-        await snbClient.increaseAllowance(
-            treasuryAddress,
-            await snbClient.maxValue()
         )
     );
 
@@ -161,7 +235,7 @@ void (async () => {
         assert.equal(incorrectAmountTx.value, txValueInSatoshi);
 
         // Mine Bitcoin Blocks
-        await axios.post(`${regtestServerUrl}/r/generate?key=satoshi&count=6`);
+        await regtestUtilClient.mine(6);
 
         // Sync Bitcoin Blocks
         const btcSyncClient = new BtcSyncClient(
@@ -211,6 +285,9 @@ void (async () => {
             ),
             receiveAddress
         );
+        await regtestUtilClient.broadcast(bitcoinTransaction.toHex());
+        await regtestUtilClient.mine(1);
+        console.log(await regtestUtilClient.fetch(bitcoinTransaction.getId()));
         const balance = await sbtcClient.getBalance();
         assert.isTrue(balance.isEqualTo(initialBalance));
     })();
@@ -238,7 +315,7 @@ void (async () => {
 
         // Mine Bitcoin Blocks
         const deposittedTxId = deposittedTx.txId;
-        await axios.post(`${regtestServerUrl}/r/generate?key=satoshi&count=6`);
+        await regtestUtilClient.mine(6);
 
         // Sync Bitcoin Blocks
         const btcSyncClient = new BtcSyncClient(
@@ -316,83 +393,37 @@ void (async () => {
          * Release - Wait for Request Confirmed
          */
         // Sync SN Blocks
-        const tendermintSyncClient = new TendermintSyncClient(
+        const sfpsSyncClient = new SFPSSyncClient(
             shurikenClient,
             sfpsClient,
-            tendermintClient,
-            10,
+            1,
             logger
         );
-        let syncTendermintHeadersResults: ExecuteResult<any, any>[] = [];
-        for (; ;) {
-            syncTendermintHeadersResults = syncTendermintHeadersResults.concat(
-                await tendermintSyncClient.syncTendermintHeaders()
+        let syncSFPSHeadersResults: ExecuteResult<any, any>[] = [];
+        for (;;) {
+            syncSFPSHeadersResults = syncSFPSHeadersResults.concat(
+                await sfpsSyncClient.syncSFPSHeaders()
             );
-            const bestHash = await sfpsClient.currentHighestHeaderHash();
-            const bestHeight = parseInt(
-                (await tendermintClient.getBlockByHash(bestHash)).block.header
-                    .height
-            );
+            const bestHeight = await sfpsClient.currentHighestHeaderHeight();
             if (txHeight < bestHeight) {
                 break;
             }
             await new Promise((accept) => setTimeout(accept, 5 * 1000));
         }
-        await feeReporter.report(syncTendermintHeadersResults[0]);
+        await feeReporter.report(syncSFPSHeadersResults[0]);
 
         /**
          * Release - Claim Release BTC
          */
-        // Get Nonce of the request tx.
-        /*
-        const nonce = (
-            await gatewayClient.secretNetworkClient.getNonceByTxId(txHash)
-        )[0]!;
-        */
-        console.log('messages', JSON.stringify(result.tx.tx.body.messages));
-        const decodedTx = (await (import("sbtc-js/node_modules/secretjs/dist/protobuf_stuff/cosmos/tx/v1beta1/tx"))).Tx.decode(result.tx.txBytes);
-        const decodedValue = (await (import("sbtc-js/node_modules/secretjs/dist/protobuf_stuff/secret/compute/v1beta1/msg"))).MsgExecuteContract.decode(decodedTx.body!.messages[0].value);
-        console.log('decodedTx messages', JSON.stringify(decodedTx.body!.messages));
-        console.log('decoded message value', JSON.stringify(decodedValue));
-        const nonce = decodedValue.msg.slice(0, 32);
-
-        // Restore TxEncryptionKey of the request tx from nonce.
-        const txEncryptionKey =
-            await encryptionUtils.getTxEncryptionKey(
-                nonce
-            );
-
-        // Create Merkle Proof
-        const txs = await tendermintClient.getTxsInBlock(txHeight);
-        const index = txs.findIndex((tx) => tx.hash === txHash);
-        const merkleProof = MerkleProof.fromRpcTxs(txs, index);
-
-        // Get Header Chains until the synced light block
-        const bestHash = await sfpsClient.currentHighestHeaderHash();
-        const bestHeight = parseInt(
-            (await tendermintClient.getBlockByHash(bestHash)).block.header
-                .height
-        );
-        const headers = [];
-        for (let i = txHeight + 1; i <= bestHeight; i++) {
-            const header = (await tendermintClient.getBlock(i)).block.header;
-            headers.push(header);
-        }
-
-        // Get HeaderHashIndex of the synced light block
-        const headerHashIndex = (await sfpsClient.hashListLength()) - 1;
+        const proof = await sfpsClient.getResponseDeliverTxProof(txHash);
         const feePerVb = 100;
 
         // Execute and get Signed Bitcoin Transaction
         const bitcoinTransaction = await (async (): Promise<Transaction> => {
             const result = await gatewayClient.claimReleaseBtc(
-                headers,
-                Buffer.from(txEncryptionKey).toString('base64'),
-                merkleProof,
-                txs[index].tx_result,
+                proof,
                 receiveAddress,
-                feePerVb,
-                headerHashIndex
+                feePerVb
             );
             await feeReporter.report(result);
             return result.answer;
@@ -456,7 +487,7 @@ void (async () => {
         change_config: {
             config: {
                 required: 1,
-                signers: [secretNetworkClient.address, gatewayAddress],
+                signers: [shinobiClient.sn.address, gatewayAddress],
             },
         },
     };
@@ -471,7 +502,7 @@ void (async () => {
     assert.deepEqual(await multisigClient.multisigStatus(), {
         config: {
             required: 1,
-            signers: [secretNetworkClient.address, gatewayAddress],
+            signers: [shinobiClient.sn.address, gatewayAddress],
         },
         transaction_count: 2,
     });

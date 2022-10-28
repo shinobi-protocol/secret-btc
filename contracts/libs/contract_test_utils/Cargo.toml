@@ -10,5 +10,9 @@ version = "0.1.0"
 mock = []
 
 [dependencies]
+common_macros = "0.1.1"
 cosmwasm-std = {package = "secret-cosmwasm-std", version = "0.10.0"}
 serde = {version = "1.0.103", default-features = false, features = ["derive"]}
+shared_types = {path = "../shared_types", features=["state_proxy"]}
+secret-toolkit = {version = "0.5.0", features=["serialization"]}
+hex = "0.4.3"

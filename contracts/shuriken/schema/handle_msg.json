@@ -39,15 +39,11 @@
         "s_f_p_s_proxy_append_subsequent_hashes": {
           "type": "object",
           "required": [
-            "committed_hashes",
-            "last_header"
+            "committed_hashes"
           ],
           "properties": {
             "committed_hashes": {
               "$ref": "#/definitions/CommittedHashes"
-            },
-            "last_header": {
-              "type": "string"
             }
           }
         }
@@ -85,17 +81,23 @@
     "Hashes": {
       "type": "object",
       "required": [
-        "first_hash",
+        "anchor_hash",
+        "anchor_index",
         "following_hashes"
       ],
       "properties": {
-        "first_hash": {
+        "anchor_hash": {
           "type": "array",
           "items": {
             "type": "integer",
             "format": "uint8",
             "minimum": 0.0
           }
+        },
+        "anchor_index": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         },
         "following_hashes": {
           "type": "array",

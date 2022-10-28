@@ -3,11 +3,15 @@
   "title": "InitMsg",
   "type": "object",
   "required": [
-    "config"
+    "config",
+    "seed"
   ],
   "properties": {
     "config": {
       "$ref": "#/definitions/Config"
+    },
+    "seed": {
+      "$ref": "#/definitions/Seed"
     }
   },
   "definitions": {
@@ -15,13 +19,17 @@
       "type": "object",
       "required": [
         "bitcoin_spv",
-        "sfps"
+        "sfps",
+        "state_proxy"
       ],
       "properties": {
         "bitcoin_spv": {
           "$ref": "#/definitions/ContractReference"
         },
         "sfps": {
+          "$ref": "#/definitions/ContractReference"
+        },
+        "state_proxy": {
           "$ref": "#/definitions/ContractReference"
         }
       }
@@ -43,6 +51,16 @@
     },
     "HumanAddr": {
       "type": "string"
+    },
+    "Seed": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint8",
+        "minimum": 0.0
+      },
+      "maxItems": 32,
+      "minItems": 32
     }
   }
 }

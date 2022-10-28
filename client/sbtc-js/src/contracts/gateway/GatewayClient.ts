@@ -3,19 +3,19 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { Account, SecretNetworkClient } from 'secretjs';
+import { Account } from 'secretjs';
 import { encodingLength } from 'bip174/src/lib/converter/varint';
 import { address, Network, Transaction } from 'bitcoinjs-lib';
 import { MerkleProof } from '../bitcoin_spv/BitcoinMerkleTree';
-import { MerkleProof as TendermintMerkleProof } from '../sfps/TendermintMerkleTree';
 import {
     HandleMsg,
     QueryMsg,
     QueryAnswer,
     Convert,
     QueryAnswerSuspensionSwitch,
+    HandleMsgClaimReleasedBtc,
 } from './types';
-import { SFPSClient } from '../sfps/SFPSClient';
+import { ResponseDeliverTxProof, SFPSClient } from '../sfps/SFPSClient';
 import { TokenClient } from '../token/TokenClient';
 import {
     ContractClient,
@@ -24,9 +24,7 @@ import {
 import BigNumber from 'bignumber.js';
 import { Logger } from 'winston';
 import { BitcoinSPVClient } from '../bitcoin_spv/BitcoinSPVClient';
-import { FinanceAdminClient } from '../finance_admin_v1/FinanceAdminClient';
-import { TxResult } from '../../TendermintRPCClient';
-import { CurrentHighestHeaderElement as HeaderElement } from '../sfps/types';
+import ShinobiClient from '../../ShinobiClient';
 
 type ExecuteResult<ANSWER> = GenericExecuteResult<HandleMsg, ANSWER>;
 
@@ -38,8 +36,6 @@ interface Config {
     sbtcContractHash: string;
     bitcoinSPVContractAddress: string;
     bitcoinSPVContractHash: string;
-    financeAdminContractAddress: string;
-    financeAdminContractHash: string;
     ownerAddress: string;
 }
 
@@ -50,16 +46,15 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         sfps: SFPSClient;
         sbtc: TokenClient;
         bitcoinSPV: BitcoinSPVClient;
-        financeAdmin: FinanceAdminClient;
     };
 
     constructor(
         contractAddress: string,
-        secretNetworkClient: SecretNetworkClient,
+        shinobiClient: ShinobiClient,
         logger: Logger,
         viewingKey?: string
     ) {
-        super(contractAddress, secretNetworkClient, logger);
+        super(contractAddress, shinobiClient, logger);
         this.viewingKey = viewingKey;
     }
 
@@ -78,11 +73,6 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         return this.referenceContractClients!.bitcoinSPV;
     }
 
-    public async financeAdminClient(): Promise<FinanceAdminClient> {
-        await this.initReferenceContractClients();
-        return this.referenceContractClients!.financeAdmin;
-    }
-
     public async verifyMintTx(
         height: number,
         tx: Transaction,
@@ -96,7 +86,7 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
                 merkle_proof: merkleProof.encodeToContractMsg(),
             },
         };
-        return await this.execute(msg, gasLimit || 800000, () => void 0);
+        return await this.execute(msg, gasLimit || 10000000, () => void 0);
     }
 
     public async releaseIncorrectAmountBTC(
@@ -116,7 +106,7 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
                 fee_per_vb: feePerVb,
             },
         };
-        return await this.execute(msg, gasLimit || 800000, (answerJson) =>
+        return await this.execute(msg, gasLimit || 20000000, (answerJson) =>
             Transaction.fromBuffer(
                 Buffer.from(
                     Convert.toHandleAnswer(answerJson)
@@ -137,7 +127,7 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
                     entropy: entropy.toString('base64'),
                 },
             },
-            gasLimit || 200000,
+            gasLimit || 2000000,
             (answerJson) =>
                 Convert.toHandleAnswer(answerJson).request_mint_address!
                     .mint_address
@@ -157,7 +147,7 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
                     entropy: entropy.toString('base64'),
                 },
             },
-            gasLimit || 600000,
+            gasLimit || 2000000,
             (answerJson) =>
                 Buffer.from(
                     Convert.toHandleAnswer(answerJson).request_release_btc!
@@ -168,42 +158,18 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
 
     // TODO improve gasLimit estimation
     public async claimReleaseBtc(
-        headers: HeaderElement[],
-        encryption_key: string,
-        merkle_proof: TendermintMerkleProof,
-        tx_result: TxResult,
+        proof: ResponseDeliverTxProof,
         recipient_address: string,
         fee_per_vb: number,
-        header_hash_index: number,
         gasLimit?: number
     ): Promise<ExecuteResult<Transaction>> {
-        const message = {
-            claim_released_btc: {
-                encryption_key,
-                tx_result_proof: {
-                    headers: headers,
-                    merkle_proof: {
-                        total: merkle_proof.total,
-                        index: merkle_proof.index,
-                        leaf_hash: merkle_proof.leafHash.toString('hex'),
-                        aunts: merkle_proof.aunts.map((aunt) =>
-                            aunt.toString('hex')
-                        ),
-                    },
-                    tx_result: {
-                        code: tx_result.code,
-                        data: tx_result.data,
-                        gas_used: tx_result.gas_used,
-                        gas_wanted: tx_result.gas_wanted,
-                    },
-                },
-                recipient_address,
-                fee_per_vb,
-                header_hash_index,
-            },
+        const message: HandleMsgClaimReleasedBtc = {
+            recipient_address,
+            fee_per_vb,
+            ...proof.encodeToMsg(),
         };
         const result = await this.execute(
-            message,
+            { claim_released_btc: message },
             gasLimit || 5000000,
             (answerJson) =>
                 Transaction.fromBuffer(
@@ -221,7 +187,7 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
     public async setViewingKey(key: string): Promise<ExecuteResult<void>> {
         const result = await this.execute(
             { set_viewing_key: { key: key } },
-            110000,
+            1000000,
             () => void 0
         );
         this.viewingKey = key;
@@ -229,24 +195,26 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
     }
 
     public async config(): Promise<Config> {
-        const result = await this.query({
-            config: {},
-        });
-        const raw = result.config!;
-        return {
-            btcTxValues: raw.btc_tx_values.map((satoshi) =>
-                new BigNumber(satoshi).shiftedBy(-8)
-            ),
-            sfpsContractAddress: raw.sfps.address,
-            sfpsContractHash: raw.sfps.hash,
-            sbtcContractAddress: raw.sbtc.address,
-            sbtcContractHash: raw.sbtc.hash,
-            bitcoinSPVContractAddress: raw.bitcoin_spv.address,
-            bitcoinSPVContractHash: raw.bitcoin_spv.hash,
-            financeAdminContractAddress: raw.finance_admin.address,
-            financeAdminContractHash: raw.finance_admin.hash,
-            ownerAddress: raw.owner,
-        } as Config;
+        return await this.query(
+            {
+                config: {},
+            },
+            (answer) => {
+                const raw = answer.config!;
+                return {
+                    btcTxValues: raw.btc_tx_values.map((satoshi) =>
+                        new BigNumber(satoshi).shiftedBy(-8)
+                    ),
+                    sfpsContractAddress: raw.sfps.address,
+                    sfpsContractHash: raw.sfps.hash,
+                    sbtcContractAddress: raw.sbtc.address,
+                    sbtcContractHash: raw.sbtc.hash,
+                    bitcoinSPVContractAddress: raw.bitcoin_spv.address,
+                    bitcoinSPVContractHash: raw.bitcoin_spv.hash,
+                    ownerAddress: raw.owner,
+                } as Config;
+            }
+        );
     }
 
     public async getMintAddress(
@@ -255,20 +223,24 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         if (viewingKey === undefined) {
             throw new Error('no viewing key');
         }
-        const answer = await this.query({
-            mint_address: {
-                address: this.secretNetworkClient.address,
-                key: viewingKey,
+        return await this.query(
+            {
+                mint_address: {
+                    address: this.secretNetworkClient.address,
+                    key: viewingKey,
+                },
             },
-        });
-        return answer.mint_address!.address || undefined;
+            (answer) => answer.mint_address!.address || undefined
+        );
     }
 
     public async getSuspensionSwitch(): Promise<QueryAnswerSuspensionSwitch> {
-        const answer = await this.query({
-            suspension_switch: {},
-        });
-        return answer.suspension_switch!;
+        return await this.query(
+            {
+                suspension_switch: {},
+            },
+            (answer) => answer.suspension_switch!
+        );
     }
 
     public async releaseBTCByOwner(
@@ -337,7 +309,7 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
                     inputWeight +
                     TXOUT_COUNT_WEIGHT +
                     outputWeight) /
-                4
+                    4
             ) * feePerVb
         );
     }
@@ -350,22 +322,17 @@ class GatewayClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         this.referenceContractClients = {
             sfps: new SFPSClient(
                 config.sfpsContractAddress,
-                this.secretNetworkClient,
+                this.shinobiClient,
                 this.logger
             ),
             sbtc: new TokenClient(
                 config.sbtcContractAddress,
-                this.secretNetworkClient,
+                this.shinobiClient,
                 this.logger
             ),
             bitcoinSPV: new BitcoinSPVClient(
                 config.bitcoinSPVContractAddress,
-                this.secretNetworkClient,
-                this.logger
-            ),
-            financeAdmin: new FinanceAdminClient(
-                config.financeAdminContractAddress,
-                this.secretNetworkClient,
+                this.shinobiClient,
                 this.logger
             ),
         };

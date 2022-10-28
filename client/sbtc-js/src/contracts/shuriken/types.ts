@@ -11,7 +11,6 @@
 // match the expected interface, even if the JSON is valid.
 
 export interface HandleMsg {
-    change_finance_admin?: ChangeFinanceAdmin;
     bitcoin_s_p_v_add_headers?: BitcoinSPVAddHeaders;
     s_f_p_s_proxy_append_subsequent_hashes?: SFPSProxyAppendSubsequentHashes;
 }
@@ -21,18 +20,8 @@ export interface BitcoinSPVAddHeaders {
     tip_height: number;
 }
 
-export interface ChangeFinanceAdmin {
-    new_finance_admin: NewFinanceAdminObject;
-}
-
-export interface NewFinanceAdminObject {
-    address: string;
-    hash: string;
-}
-
 export interface SFPSProxyAppendSubsequentHashes {
     committed_hashes: CommittedHashes;
-    last_header: Header;
 }
 
 export interface CommittedHashes {
@@ -41,106 +30,25 @@ export interface CommittedHashes {
 }
 
 export interface Hashes {
-    first_hash: number[];
-    following_hashes: Array<number[]>;
+    anchor_hash: number[];
+    anchor_index: number;
+    following_hashes: HeaderHashWithHeight[];
 }
 
-export interface Header {
-    /**
-     * State after txs from the previous block
-     */
-    app_hash: string;
-    /**
-     * Chain ID
-     */
-    chain_id: string;
-    /**
-     * Consensus params for the current block
-     */
-    consensus_hash: string;
-    /**
-     * Merkle root of transaction hashes
-     */
-    data_hash: string;
-    /**
-     * Hash of evidence included in the block
-     */
-    evidence_hash: string;
-    /**
-     * Current block height
-     */
-    height: string;
-    /**
-     * Previous block info
-     */
-    last_block_id: BlockID;
-    /**
-     * Commit from validators from the last block
-     */
-    last_commit_hash: string;
-    /**
-     * Root hash of all results from the txs from the previous block
-     */
-    last_results_hash: string;
-    /**
-     * Validators for the next block
-     */
-    next_validators_hash: string;
-    /**
-     * Original proposer of the block
-     */
-    proposer_address: string;
-    /**
-     * Current timestamp
-     */
-    time: string;
-    /**
-     * Validators for the current block
-     */
-    validators_hash: string;
-    /**
-     * Header version
-     */
-    version?: null | Version;
-}
-
-/**
- * Previous block info
- *
- * BlockID
- */
-export interface BlockID {
-    hash: string;
-    parts?: null | PartSetHeader;
-}
-
-/**
- * Block parts header
- */
-export interface PartSetHeader {
-    hash: string;
-    total: number;
-}
-
-export interface Version {
-    /**
-     * App version
-     */
-    app?: string;
-    /**
-     * Block version
-     */
-    block: string;
+export interface HeaderHashWithHeight {
+    hash: number[];
+    height: number;
 }
 
 export interface InitMsg {
     config: InitMsgConfig;
+    seed: number[];
 }
 
 export interface InitMsgConfig {
     bitcoin_spv: PurpleContractReference;
-    finance_admin: PurpleContractReference;
     sfps: PurpleContractReference;
+    state_proxy: PurpleContractReference;
 }
 
 export interface PurpleContractReference {
@@ -154,8 +62,8 @@ export interface QueryAnswer {
 
 export interface QueryAnswerConfig {
     bitcoin_spv: FluffyContractReference;
-    finance_admin: FluffyContractReference;
     sfps: FluffyContractReference;
+    state_proxy: FluffyContractReference;
 }
 
 export interface FluffyContractReference {
@@ -358,11 +266,6 @@ const typeMap: any = {
     HandleMsg: o(
         [
             {
-                json: 'change_finance_admin',
-                js: 'change_finance_admin',
-                typ: u(undefined, r('ChangeFinanceAdmin')),
-            },
-            {
                 json: 'bitcoin_s_p_v_add_headers',
                 js: 'bitcoin_s_p_v_add_headers',
                 typ: u(undefined, r('BitcoinSPVAddHeaders')),
@@ -382,23 +285,6 @@ const typeMap: any = {
         ],
         'any'
     ),
-    ChangeFinanceAdmin: o(
-        [
-            {
-                json: 'new_finance_admin',
-                js: 'new_finance_admin',
-                typ: r('NewFinanceAdminObject'),
-            },
-        ],
-        'any'
-    ),
-    NewFinanceAdminObject: o(
-        [
-            { json: 'address', js: 'address', typ: '' },
-            { json: 'hash', js: 'hash', typ: '' },
-        ],
-        'any'
-    ),
     SFPSProxyAppendSubsequentHashes: o(
         [
             {
@@ -406,7 +292,6 @@ const typeMap: any = {
                 js: 'committed_hashes',
                 typ: r('CommittedHashes'),
             },
-            { json: 'last_header', js: 'last_header', typ: r('Header') },
         ],
         'any'
     ),
@@ -419,65 +304,28 @@ const typeMap: any = {
     ),
     Hashes: o(
         [
-            { json: 'first_hash', js: 'first_hash', typ: a(0) },
-            { json: 'following_hashes', js: 'following_hashes', typ: a(a(0)) },
-        ],
-        'any'
-    ),
-    Header: o(
-        [
-            { json: 'app_hash', js: 'app_hash', typ: '' },
-            { json: 'chain_id', js: 'chain_id', typ: '' },
-            { json: 'consensus_hash', js: 'consensus_hash', typ: '' },
-            { json: 'data_hash', js: 'data_hash', typ: '' },
-            { json: 'evidence_hash', js: 'evidence_hash', typ: '' },
-            { json: 'height', js: 'height', typ: '' },
-            { json: 'last_block_id', js: 'last_block_id', typ: r('BlockID') },
-            { json: 'last_commit_hash', js: 'last_commit_hash', typ: '' },
-            { json: 'last_results_hash', js: 'last_results_hash', typ: '' },
+            { json: 'anchor_hash', js: 'anchor_hash', typ: a(0) },
+            { json: 'anchor_index', js: 'anchor_index', typ: 0 },
             {
-                json: 'next_validators_hash',
-                js: 'next_validators_hash',
-                typ: '',
-            },
-            { json: 'proposer_address', js: 'proposer_address', typ: '' },
-            { json: 'time', js: 'time', typ: '' },
-            { json: 'validators_hash', js: 'validators_hash', typ: '' },
-            {
-                json: 'version',
-                js: 'version',
-                typ: u(undefined, u(null, r('Version'))),
+                json: 'following_hashes',
+                js: 'following_hashes',
+                typ: a(r('HeaderHashWithHeight')),
             },
         ],
         'any'
     ),
-    BlockID: o(
+    HeaderHashWithHeight: o(
         [
-            { json: 'hash', js: 'hash', typ: '' },
-            {
-                json: 'parts',
-                js: 'parts',
-                typ: u(undefined, u(null, r('PartSetHeader'))),
-            },
-        ],
-        'any'
-    ),
-    PartSetHeader: o(
-        [
-            { json: 'hash', js: 'hash', typ: '' },
-            { json: 'total', js: 'total', typ: 0 },
-        ],
-        'any'
-    ),
-    Version: o(
-        [
-            { json: 'app', js: 'app', typ: u(undefined, '') },
-            { json: 'block', js: 'block', typ: '' },
+            { json: 'hash', js: 'hash', typ: a(0) },
+            { json: 'height', js: 'height', typ: 0 },
         ],
         'any'
     ),
     InitMsg: o(
-        [{ json: 'config', js: 'config', typ: r('InitMsgConfig') }],
+        [
+            { json: 'config', js: 'config', typ: r('InitMsgConfig') },
+            { json: 'seed', js: 'seed', typ: a(0) },
+        ],
         'any'
     ),
     InitMsgConfig: o(
@@ -487,12 +335,12 @@ const typeMap: any = {
                 js: 'bitcoin_spv',
                 typ: r('PurpleContractReference'),
             },
+            { json: 'sfps', js: 'sfps', typ: r('PurpleContractReference') },
             {
-                json: 'finance_admin',
-                js: 'finance_admin',
+                json: 'state_proxy',
+                js: 'state_proxy',
                 typ: r('PurpleContractReference'),
             },
-            { json: 'sfps', js: 'sfps', typ: r('PurpleContractReference') },
         ],
         'any'
     ),
@@ -514,12 +362,12 @@ const typeMap: any = {
                 js: 'bitcoin_spv',
                 typ: r('FluffyContractReference'),
             },
+            { json: 'sfps', js: 'sfps', typ: r('FluffyContractReference') },
             {
-                json: 'finance_admin',
-                js: 'finance_admin',
+                json: 'state_proxy',
+                js: 'state_proxy',
                 typ: r('FluffyContractReference'),
             },
-            { json: 'sfps', js: 'sfps', typ: r('FluffyContractReference') },
         ],
         'any'
     ),

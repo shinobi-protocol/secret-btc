@@ -20,7 +20,7 @@
         }
     },
     "mainnet-test": {
-        "name": "test-sbtc",
+        "name": "test-sbtc-beta2",
         "symbol": "TSBTC",
         "decimals": 8,
         "config": {

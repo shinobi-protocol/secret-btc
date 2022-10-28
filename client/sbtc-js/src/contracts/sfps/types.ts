@@ -11,97 +11,20 @@
 // match the expected interface, even if the JSON is valid.
 
 export interface InitMsg {
+    config: Config;
     entropy: string;
-    initial_header: InitialHeaderObject;
+    initial_header: string;
     max_interval: number;
+    seed: number[];
 }
 
-export interface InitialHeaderObject {
-    /**
-     * State after txs from the previous block
-     */
-    app_hash: string;
-    /**
-     * Chain ID
-     */
-    chain_id: string;
-    /**
-     * Consensus params for the current block
-     */
-    consensus_hash: string;
-    /**
-     * Merkle root of transaction hashes
-     */
-    data_hash: string;
-    /**
-     * Hash of evidence included in the block
-     */
-    evidence_hash: string;
-    /**
-     * Current block height
-     */
-    height: string;
-    /**
-     * Previous block info
-     */
-    last_block_id: InitialHeaderLastBlockID;
-    /**
-     * Commit from validators from the last block
-     */
-    last_commit_hash: string;
-    /**
-     * Root hash of all results from the txs from the previous block
-     */
-    last_results_hash: string;
-    /**
-     * Validators for the next block
-     */
-    next_validators_hash: string;
-    /**
-     * Original proposer of the block
-     */
-    proposer_address: string;
-    /**
-     * Current timestamp
-     */
-    time: string;
-    /**
-     * Validators for the current block
-     */
-    validators_hash: string;
-    /**
-     * Header version
-     */
-    version?: null | InitialHeaderVersion;
+export interface Config {
+    state_proxy: ContractReference;
 }
 
-/**
- * Previous block info
- *
- * BlockID
- */
-export interface InitialHeaderLastBlockID {
+export interface ContractReference {
+    address: string;
     hash: string;
-    parts?: null | PurplePartSetHeader;
-}
-
-/**
- * Block parts header
- */
-export interface PurplePartSetHeader {
-    hash: string;
-    total: number;
-}
-
-export interface InitialHeaderVersion {
-    /**
-     * App version
-     */
-    app?: string;
-    /**
-     * Block version
-     */
-    block: string;
 }
 
 export interface QueryAnswer {
@@ -109,16 +32,18 @@ export interface QueryAnswer {
     current_highest_header_hash?: CurrentHighestHeaderHash;
     hash_list_length?: HashListLength;
     hash_by_index?: QueryAnswerHashByIndex;
-    verify_tx_result_proof?: QueryAnswerVerifyTxResultProof;
+    verify_response_deliver_tx_proof?: QueryAnswerVerifyResponseDeliverTxProof;
     verify_subsequent_light_blocks?: QueryAnswerVerifySubsequentLightBlocks;
 }
 
 export interface CurrentHighestHeaderHash {
     hash: string;
+    height: number;
 }
 
 export interface QueryAnswerHashByIndex {
     hash: string;
+    height: number;
 }
 
 export interface HashListLength {
@@ -127,6 +52,10 @@ export interface HashListLength {
 
 export interface MaxInterval {
     max_interval: number;
+}
+
+export interface QueryAnswerVerifyResponseDeliverTxProof {
+    decrypted_data: string;
 }
 
 export interface QueryAnswerVerifySubsequentLightBlocks {
@@ -139,12 +68,14 @@ export interface VerifySubsequentLightBlocksCommittedHashes {
 }
 
 export interface PurpleHashes {
-    first_hash: number[];
-    following_hashes: Array<number[]>;
+    anchor_hash: number[];
+    anchor_index: number;
+    following_hashes: PurpleHeaderHashWithHeight[];
 }
 
-export interface QueryAnswerVerifyTxResultProof {
-    decrypted_data: string;
+export interface PurpleHeaderHashWithHeight {
+    hash: number[];
+    height: number;
 }
 
 export interface QueryMsg {
@@ -152,7 +83,7 @@ export interface QueryMsg {
     current_highest_header_hash?: { [key: string]: any };
     hash_list_length?: { [key: string]: any };
     hash_by_index?: QueryMsgHashByIndex;
-    verify_tx_result_proof?: QueryMsgVerifyTxResultProof;
+    verify_response_deliver_tx_proof?: QueryMsgVerifyResponseDeliverTxProof;
     verify_subsequent_light_blocks?: QueryMsgVerifySubsequentLightBlocks;
 }
 
@@ -160,176 +91,25 @@ export interface QueryMsgHashByIndex {
     index: number;
 }
 
-export interface QueryMsgVerifySubsequentLightBlocks {
-    current_highest_header: CurrentHighestHeaderElement;
-    light_blocks: LightBlock[];
-}
-
-export interface CurrentHighestHeaderElement {
-    /**
-     * State after txs from the previous block
-     */
-    app_hash: string;
-    /**
-     * Chain ID
-     */
-    chain_id: string;
-    /**
-     * Consensus params for the current block
-     */
-    consensus_hash: string;
-    /**
-     * Merkle root of transaction hashes
-     */
-    data_hash: string;
-    /**
-     * Hash of evidence included in the block
-     */
-    evidence_hash: string;
-    /**
-     * Current block height
-     */
-    height: string;
-    /**
-     * Previous block info
-     */
-    last_block_id: BlockIDObject;
-    /**
-     * Commit from validators from the last block
-     */
-    last_commit_hash: string;
-    /**
-     * Root hash of all results from the txs from the previous block
-     */
-    last_results_hash: string;
-    /**
-     * Validators for the next block
-     */
-    next_validators_hash: string;
-    /**
-     * Original proposer of the block
-     */
-    proposer_address: string;
-    /**
-     * Current timestamp
-     */
-    time: string;
-    /**
-     * Validators for the current block
-     */
-    validators_hash: string;
-    /**
-     * Header version
-     */
-    version?: null | CurrentHighestHeaderVersion;
-}
-
-/**
- * Previous block info
- *
- * BlockID
- *
- * Block ID
- */
-export interface BlockIDObject {
-    hash: string;
-    parts?: null | BlockIDPartSetHeader;
-}
-
-/**
- * Block parts header
- */
-export interface BlockIDPartSetHeader {
-    hash: string;
-    total: number;
-}
-
-export interface CurrentHighestHeaderVersion {
-    /**
-     * App version
-     */
-    app?: string;
-    /**
-     * Block version
-     */
-    block: string;
-}
-
-export interface LightBlock {
-    signed_header: SignedHeader;
-    validators: ValidatorInfo[];
-}
-
-export interface SignedHeader {
-    commit: Commit;
-    header: CurrentHighestHeaderElement;
-}
-
-export interface Commit {
-    /**
-     * Block ID
-     */
-    block_id: BlockIDObject;
-    /**
-     * Block height
-     */
-    height: string;
-    /**
-     * Round
-     */
-    round: number;
-    /**
-     * Votes
-     */
-    signatures: CommitSig[];
-}
-
-export interface CommitSig {
-    block_id_flag: number;
-    signature?: null | string;
-    timestamp: string;
-    validator_address: string;
-}
-
-export interface ValidatorInfo {
-    address: string;
-    pub_key: PublicKey;
-    voting_power: string;
-}
-
-export interface PublicKey {
-    type: Type;
-    value: string;
-}
-
-export enum Type {
-    TendermintPubKeyEd25519 = 'tendermint/PubKeyEd25519',
-}
-
-export interface QueryMsgVerifyTxResultProof {
+export interface QueryMsgVerifyResponseDeliverTxProof {
+    block_hash_index: number;
     encryption_key: string;
-    header_hash_index: number;
-    tx_result_proof: TxResultProof;
-}
-
-export interface TxResultProof {
-    headers: CurrentHighestHeaderElement[];
+    headers: string[];
     merkle_proof: MerkleProof;
-    tx_result: TxResult;
 }
 
 export interface MerkleProof {
     aunts: string[];
     index: number;
-    leaf_hash: string;
+    leaf: string;
     total: number;
 }
 
-export interface TxResult {
-    code: number;
-    data: string;
-    gas_used: string;
-    gas_wanted: string;
+export interface QueryMsgVerifySubsequentLightBlocks {
+    anchor_header: string;
+    anchor_header_index: number;
+    commit_flags: boolean[];
+    following_light_blocks: string[];
 }
 
 export interface SFPSHandleMsg {
@@ -346,8 +126,14 @@ export interface AppendSubsequentHashesCommittedHashes {
 }
 
 export interface FluffyHashes {
-    first_hash: number[];
-    following_hashes: Array<number[]>;
+    anchor_hash: number[];
+    anchor_index: number;
+    following_hashes: FluffyHeaderHashWithHeight[];
+}
+
+export interface FluffyHeaderHashWithHeight {
+    hash: number[];
+    height: number;
 }
 
 // Converts JSON strings to/from your types
@@ -540,69 +326,28 @@ function r(name: string) {
 const typeMap: any = {
     InitMsg: o(
         [
+            { json: 'config', js: 'config', typ: r('Config') },
             { json: 'entropy', js: 'entropy', typ: '' },
-            {
-                json: 'initial_header',
-                js: 'initial_header',
-                typ: r('InitialHeaderObject'),
-            },
+            { json: 'initial_header', js: 'initial_header', typ: '' },
             { json: 'max_interval', js: 'max_interval', typ: 0 },
+            { json: 'seed', js: 'seed', typ: a(0) },
         ],
         'any'
     ),
-    InitialHeaderObject: o(
+    Config: o(
         [
-            { json: 'app_hash', js: 'app_hash', typ: '' },
-            { json: 'chain_id', js: 'chain_id', typ: '' },
-            { json: 'consensus_hash', js: 'consensus_hash', typ: '' },
-            { json: 'data_hash', js: 'data_hash', typ: '' },
-            { json: 'evidence_hash', js: 'evidence_hash', typ: '' },
-            { json: 'height', js: 'height', typ: '' },
             {
-                json: 'last_block_id',
-                js: 'last_block_id',
-                typ: r('InitialHeaderLastBlockID'),
-            },
-            { json: 'last_commit_hash', js: 'last_commit_hash', typ: '' },
-            { json: 'last_results_hash', js: 'last_results_hash', typ: '' },
-            {
-                json: 'next_validators_hash',
-                js: 'next_validators_hash',
-                typ: '',
-            },
-            { json: 'proposer_address', js: 'proposer_address', typ: '' },
-            { json: 'time', js: 'time', typ: '' },
-            { json: 'validators_hash', js: 'validators_hash', typ: '' },
-            {
-                json: 'version',
-                js: 'version',
-                typ: u(undefined, u(null, r('InitialHeaderVersion'))),
+                json: 'state_proxy',
+                js: 'state_proxy',
+                typ: r('ContractReference'),
             },
         ],
         'any'
     ),
-    InitialHeaderLastBlockID: o(
+    ContractReference: o(
         [
+            { json: 'address', js: 'address', typ: '' },
             { json: 'hash', js: 'hash', typ: '' },
-            {
-                json: 'parts',
-                js: 'parts',
-                typ: u(undefined, u(null, r('PurplePartSetHeader'))),
-            },
-        ],
-        'any'
-    ),
-    PurplePartSetHeader: o(
-        [
-            { json: 'hash', js: 'hash', typ: '' },
-            { json: 'total', js: 'total', typ: 0 },
-        ],
-        'any'
-    ),
-    InitialHeaderVersion: o(
-        [
-            { json: 'app', js: 'app', typ: u(undefined, '') },
-            { json: 'block', js: 'block', typ: '' },
         ],
         'any'
     ),
@@ -629,9 +374,9 @@ const typeMap: any = {
                 typ: u(undefined, r('QueryAnswerHashByIndex')),
             },
             {
-                json: 'verify_tx_result_proof',
-                js: 'verify_tx_result_proof',
-                typ: u(undefined, r('QueryAnswerVerifyTxResultProof')),
+                json: 'verify_response_deliver_tx_proof',
+                js: 'verify_response_deliver_tx_proof',
+                typ: u(undefined, r('QueryAnswerVerifyResponseDeliverTxProof')),
             },
             {
                 json: 'verify_subsequent_light_blocks',
@@ -641,11 +386,27 @@ const typeMap: any = {
         ],
         'any'
     ),
-    CurrentHighestHeaderHash: o([{ json: 'hash', js: 'hash', typ: '' }], 'any'),
-    QueryAnswerHashByIndex: o([{ json: 'hash', js: 'hash', typ: '' }], 'any'),
+    CurrentHighestHeaderHash: o(
+        [
+            { json: 'hash', js: 'hash', typ: '' },
+            { json: 'height', js: 'height', typ: 0 },
+        ],
+        'any'
+    ),
+    QueryAnswerHashByIndex: o(
+        [
+            { json: 'hash', js: 'hash', typ: '' },
+            { json: 'height', js: 'height', typ: 0 },
+        ],
+        'any'
+    ),
     HashListLength: o([{ json: 'length', js: 'length', typ: 0 }], 'any'),
     MaxInterval: o(
         [{ json: 'max_interval', js: 'max_interval', typ: 0 }],
+        'any'
+    ),
+    QueryAnswerVerifyResponseDeliverTxProof: o(
+        [{ json: 'decrypted_data', js: 'decrypted_data', typ: '' }],
         'any'
     ),
     QueryAnswerVerifySubsequentLightBlocks: o(
@@ -667,13 +428,21 @@ const typeMap: any = {
     ),
     PurpleHashes: o(
         [
-            { json: 'first_hash', js: 'first_hash', typ: a(0) },
-            { json: 'following_hashes', js: 'following_hashes', typ: a(a(0)) },
+            { json: 'anchor_hash', js: 'anchor_hash', typ: a(0) },
+            { json: 'anchor_index', js: 'anchor_index', typ: 0 },
+            {
+                json: 'following_hashes',
+                js: 'following_hashes',
+                typ: a(r('PurpleHeaderHashWithHeight')),
+            },
         ],
         'any'
     ),
-    QueryAnswerVerifyTxResultProof: o(
-        [{ json: 'decrypted_data', js: 'decrypted_data', typ: '' }],
+    PurpleHeaderHashWithHeight: o(
+        [
+            { json: 'hash', js: 'hash', typ: a(0) },
+            { json: 'height', js: 'height', typ: 0 },
+        ],
         'any'
     ),
     QueryMsg: o(
@@ -699,9 +468,9 @@ const typeMap: any = {
                 typ: u(undefined, r('QueryMsgHashByIndex')),
             },
             {
-                json: 'verify_tx_result_proof',
-                js: 'verify_tx_result_proof',
-                typ: u(undefined, r('QueryMsgVerifyTxResultProof')),
+                json: 'verify_response_deliver_tx_proof',
+                js: 'verify_response_deliver_tx_proof',
+                typ: u(undefined, r('QueryMsgVerifyResponseDeliverTxProof')),
             },
             {
                 json: 'verify_subsequent_light_blocks',
@@ -712,161 +481,12 @@ const typeMap: any = {
         'any'
     ),
     QueryMsgHashByIndex: o([{ json: 'index', js: 'index', typ: 0 }], 'any'),
-    QueryMsgVerifySubsequentLightBlocks: o(
+    QueryMsgVerifyResponseDeliverTxProof: o(
         [
-            {
-                json: 'current_highest_header',
-                js: 'current_highest_header',
-                typ: r('CurrentHighestHeaderElement'),
-            },
-            {
-                json: 'light_blocks',
-                js: 'light_blocks',
-                typ: a(r('LightBlock')),
-            },
-        ],
-        'any'
-    ),
-    CurrentHighestHeaderElement: o(
-        [
-            { json: 'app_hash', js: 'app_hash', typ: '' },
-            { json: 'chain_id', js: 'chain_id', typ: '' },
-            { json: 'consensus_hash', js: 'consensus_hash', typ: '' },
-            { json: 'data_hash', js: 'data_hash', typ: '' },
-            { json: 'evidence_hash', js: 'evidence_hash', typ: '' },
-            { json: 'height', js: 'height', typ: '' },
-            {
-                json: 'last_block_id',
-                js: 'last_block_id',
-                typ: r('BlockIDObject'),
-            },
-            { json: 'last_commit_hash', js: 'last_commit_hash', typ: '' },
-            { json: 'last_results_hash', js: 'last_results_hash', typ: '' },
-            {
-                json: 'next_validators_hash',
-                js: 'next_validators_hash',
-                typ: '',
-            },
-            { json: 'proposer_address', js: 'proposer_address', typ: '' },
-            { json: 'time', js: 'time', typ: '' },
-            { json: 'validators_hash', js: 'validators_hash', typ: '' },
-            {
-                json: 'version',
-                js: 'version',
-                typ: u(undefined, u(null, r('CurrentHighestHeaderVersion'))),
-            },
-        ],
-        'any'
-    ),
-    BlockIDObject: o(
-        [
-            { json: 'hash', js: 'hash', typ: '' },
-            {
-                json: 'parts',
-                js: 'parts',
-                typ: u(undefined, u(null, r('BlockIDPartSetHeader'))),
-            },
-        ],
-        'any'
-    ),
-    BlockIDPartSetHeader: o(
-        [
-            { json: 'hash', js: 'hash', typ: '' },
-            { json: 'total', js: 'total', typ: 0 },
-        ],
-        'any'
-    ),
-    CurrentHighestHeaderVersion: o(
-        [
-            { json: 'app', js: 'app', typ: u(undefined, '') },
-            { json: 'block', js: 'block', typ: '' },
-        ],
-        'any'
-    ),
-    LightBlock: o(
-        [
-            {
-                json: 'signed_header',
-                js: 'signed_header',
-                typ: r('SignedHeader'),
-            },
-            {
-                json: 'validators',
-                js: 'validators',
-                typ: a(r('ValidatorInfo')),
-            },
-        ],
-        'any'
-    ),
-    SignedHeader: o(
-        [
-            { json: 'commit', js: 'commit', typ: r('Commit') },
-            {
-                json: 'header',
-                js: 'header',
-                typ: r('CurrentHighestHeaderElement'),
-            },
-        ],
-        'any'
-    ),
-    Commit: o(
-        [
-            { json: 'block_id', js: 'block_id', typ: r('BlockIDObject') },
-            { json: 'height', js: 'height', typ: '' },
-            { json: 'round', js: 'round', typ: 0 },
-            { json: 'signatures', js: 'signatures', typ: a(r('CommitSig')) },
-        ],
-        'any'
-    ),
-    CommitSig: o(
-        [
-            { json: 'block_id_flag', js: 'block_id_flag', typ: 0 },
-            {
-                json: 'signature',
-                js: 'signature',
-                typ: u(undefined, u(null, '')),
-            },
-            { json: 'timestamp', js: 'timestamp', typ: '' },
-            { json: 'validator_address', js: 'validator_address', typ: '' },
-        ],
-        'any'
-    ),
-    ValidatorInfo: o(
-        [
-            { json: 'address', js: 'address', typ: '' },
-            { json: 'pub_key', js: 'pub_key', typ: r('PublicKey') },
-            { json: 'voting_power', js: 'voting_power', typ: '' },
-        ],
-        'any'
-    ),
-    PublicKey: o(
-        [
-            { json: 'type', js: 'type', typ: r('Type') },
-            { json: 'value', js: 'value', typ: '' },
-        ],
-        'any'
-    ),
-    QueryMsgVerifyTxResultProof: o(
-        [
+            { json: 'block_hash_index', js: 'block_hash_index', typ: 0 },
             { json: 'encryption_key', js: 'encryption_key', typ: '' },
-            { json: 'header_hash_index', js: 'header_hash_index', typ: 0 },
-            {
-                json: 'tx_result_proof',
-                js: 'tx_result_proof',
-                typ: r('TxResultProof'),
-            },
-        ],
-        'any'
-    ),
-    TxResultProof: o(
-        [
-            {
-                json: 'headers',
-                js: 'headers',
-                typ: a(r('CurrentHighestHeaderElement')),
-            },
+            { json: 'headers', js: 'headers', typ: a('') },
             { json: 'merkle_proof', js: 'merkle_proof', typ: r('MerkleProof') },
-            { json: 'tx_result', js: 'tx_result', typ: r('TxResult') },
         ],
         'any'
     ),
@@ -874,17 +494,21 @@ const typeMap: any = {
         [
             { json: 'aunts', js: 'aunts', typ: a('') },
             { json: 'index', js: 'index', typ: 0 },
-            { json: 'leaf_hash', js: 'leaf_hash', typ: '' },
+            { json: 'leaf', js: 'leaf', typ: '' },
             { json: 'total', js: 'total', typ: 0 },
         ],
         'any'
     ),
-    TxResult: o(
+    QueryMsgVerifySubsequentLightBlocks: o(
         [
-            { json: 'code', js: 'code', typ: 0 },
-            { json: 'data', js: 'data', typ: '' },
-            { json: 'gas_used', js: 'gas_used', typ: '' },
-            { json: 'gas_wanted', js: 'gas_wanted', typ: '' },
+            { json: 'anchor_header', js: 'anchor_header', typ: '' },
+            { json: 'anchor_header_index', js: 'anchor_header_index', typ: 0 },
+            { json: 'commit_flags', js: 'commit_flags', typ: a(true) },
+            {
+                json: 'following_light_blocks',
+                js: 'following_light_blocks',
+                typ: a(''),
+            },
         ],
         'any'
     ),
@@ -917,10 +541,21 @@ const typeMap: any = {
     ),
     FluffyHashes: o(
         [
-            { json: 'first_hash', js: 'first_hash', typ: a(0) },
-            { json: 'following_hashes', js: 'following_hashes', typ: a(a(0)) },
+            { json: 'anchor_hash', js: 'anchor_hash', typ: a(0) },
+            { json: 'anchor_index', js: 'anchor_index', typ: 0 },
+            {
+                json: 'following_hashes',
+                js: 'following_hashes',
+                typ: a(r('FluffyHeaderHashWithHeight')),
+            },
         ],
         'any'
     ),
-    Type: ['tendermint/PubKeyEd25519'],
+    FluffyHeaderHashWithHeight: o(
+        [
+            { json: 'hash', js: 'hash', typ: a(0) },
+            { json: 'height', js: 'height', typ: 0 },
+        ],
+        'any'
+    ),
 };

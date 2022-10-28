@@ -18,6 +18,8 @@ pub enum Event {
     ReleaseCompleted(ReleaseCompletedData),
     /// tag: 5
     ReleaseIncorrectAmountBTC(ReleaseIncorrectAmountBTCData),
+    /// tag: 8
+    Other(String),
 }
 
 /// contracts or user to submit event.
@@ -25,6 +27,7 @@ pub enum Event {
 pub enum EventSource {
     Gateway,
     User,
+    Any,
 }
 
 impl Event {
@@ -38,6 +41,7 @@ impl Event {
             | Self::ReleaseCompleted(_)
             | Self::ReleaseIncorrectAmountBTC(_) => EventSource::Gateway,
             Self::ReleaseRequestConfirmed(_) => EventSource::User,
+            Self::Other(_) => EventSource::Any,
         }
     }
 }
@@ -111,6 +115,7 @@ pub mod serde_event_on_storage {
             Event::ReleaseRequestConfirmed(data) => (3, Bincode2::serialize(data)?),
             Event::ReleaseCompleted(data) => (4, Bincode2::serialize(data)?),
             Event::ReleaseIncorrectAmountBTC(data) => (5, Bincode2::serialize(data)?),
+            Event::Other(data) => (6, data.as_bytes().to_vec()),
         };
         let mut serialized = event_data;
         serialized.push(event_type);
@@ -132,6 +137,7 @@ pub mod serde_event_on_storage {
             5 => Ok(Event::ReleaseIncorrectAmountBTC(Bincode2::deserialize(
                 &event_data,
             )?)),
+            6 => Ok(Event::Other(Bincode2::deserialize(&event_data)?)),
             x => Err(StdError::generic_err(format!(
                 "unexpected event type {}",
                 x
@@ -206,6 +212,7 @@ pub mod serde_event_on_storage {
                     release_to: "release_to".into(),
                     txid: "txid".into(),
                 }),
+                Event::Other("{ \"time\": \"100000\" }".to_string()),
             ];
 
             for event in events {

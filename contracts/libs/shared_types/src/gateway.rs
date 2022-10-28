@@ -1,6 +1,6 @@
 use crate::{
-    bitcoin_spv, sfps, viewing_key, CanonicalContractReference, Canonicalize, ContractReference,
-    BLOCK_SIZE,
+    bitcoin_spv, sfps, state_proxy, viewing_key, CanonicalContractReference, Canonicalize,
+    ContractReference, BLOCK_SIZE,
 };
 use cosmwasm_std::{Api, Binary, CanonicalAddr, HumanAddr, StdResult};
 use schemars::JsonSchema;
@@ -10,7 +10,7 @@ use std::collections::HashSet;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InitMsg {
-    pub entropy: Binary,
+    pub seed: state_proxy::client::Seed,
     pub config: Config,
 }
 
@@ -25,6 +25,7 @@ pub struct Config {
     pub sfps: ContractReference,
     pub sbtc: ContractReference,
     pub log: ContractReference,
+    pub state_proxy: ContractReference,
 
     /// [Owner]
     pub owner: HumanAddr,
@@ -37,6 +38,7 @@ pub struct CanonicalConfig {
     pub sfps: CanonicalContractReference,
     pub sbtc: CanonicalContractReference,
     pub log: CanonicalContractReference,
+    pub state_proxy: CanonicalContractReference,
     pub owner: CanonicalAddr,
 }
 
@@ -50,6 +52,7 @@ impl Canonicalize for Config {
             sfps: self.sfps.into_canonical(api)?,
             sbtc: self.sbtc.into_canonical(api)?,
             log: self.log.into_canonical(api)?,
+            state_proxy: self.state_proxy.into_canonical(api)?,
             owner: self.owner.into_canonical(api)?,
         })
     }
@@ -61,6 +64,7 @@ impl Canonicalize for Config {
             sfps: ContractReference::from_canonical(canonical.sfps, api)?,
             sbtc: ContractReference::from_canonical(canonical.sbtc, api)?,
             log: ContractReference::from_canonical(canonical.log, api)?,
+            state_proxy: ContractReference::from_canonical(canonical.state_proxy, api)?,
             owner: HumanAddr::from_canonical(canonical.owner, api)?,
         })
     }

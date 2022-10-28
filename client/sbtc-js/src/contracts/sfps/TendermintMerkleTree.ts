@@ -1,49 +1,27 @@
 import { sha256 } from '../../hash';
-import { Tx, TxResult } from '../../TendermintRPCClient';
-import { ResponseDeliverTx } from './tendermint.abci';
-
-// encode tendermint v0.34.0 TxData(ResponseDeliverTx) to leaf of merkle tree in header (last_results_hash)
-export class TxDataEncoder {
-    public static decode(buffer: Buffer): ResponseDeliverTx {
-        return ResponseDeliverTx.fromBinary(buffer);
-    }
-
-    public static encode(tx_result: TxResult): Buffer {
-        // set code to undefined if 0(default value)
-        const responseDeliverTx: ResponseDeliverTx = {
-            code: tx_result.code,
-            data: Buffer.from(tx_result.data, 'base64'),
-            log: '',
-            info: '',
-            gasWanted: BigInt(tx_result.gas_wanted),
-            gasUsed: BigInt(tx_result.gas_used),
-            events: [],
-            codespace: '',
-        };
-        return Buffer.from(ResponseDeliverTx.toBinary(responseDeliverTx));
-    }
-}
+import { ResponseDeliverTx } from 'secretjs/dist/protobuf_stuff/tendermint/abci/types';
+import { encodeToBuffer } from '../../proto';
 
 export class MerkleProof {
     total: number;
     index: number;
-    leafHash: Buffer;
     aunts: Buffer[];
+    leaf: Buffer;
 
-    constructor(
-        total: number,
-        index: number,
-        leafHash: Buffer,
-        aunts: Buffer[]
-    ) {
+    constructor(total: number, index: number, aunts: Buffer[], leaf: Buffer) {
         this.total = total;
         this.index = index;
-        this.leafHash = leafHash;
         this.aunts = aunts;
+        this.leaf = leaf;
     }
 
-    public static fromRpcTxs(rpcTxs: Tx[], index: number): MerkleProof {
-        const leaves = rpcTxs.map((tx) => TxDataEncoder.encode(tx.tx_result));
+    public static fromResponseDeliverTxs(
+        responseDeliverTxs: ResponseDeliverTx[],
+        index: number
+    ): MerkleProof {
+        const leaves = responseDeliverTxs.map((tx) =>
+            encodeResponseDeliverTxToMerkleLeaf(tx)
+        );
         return MerkleProof.fromLeaves(leaves, index);
     }
 
@@ -53,7 +31,7 @@ export class MerkleProof {
             throw new Error('invalid index');
         }
         const aunts = this._buildAunts(leaves, index);
-        return new MerkleProof(total, index, leafHash(leaves[index]), aunts);
+        return new MerkleProof(total, index, aunts, leaves[index]);
     }
 
     private static _buildAunts(leaves: Buffer[], index: number): Buffer[] {
@@ -118,4 +96,14 @@ export function merkleRoot(leaves: Buffer[]): Buffer {
     const right = merkleRoot(leaves.slice(splitPoint));
     // inner hash
     return innerHash(left, right);
+}
+
+function encodeResponseDeliverTxToMerkleLeaf(tx: ResponseDeliverTx): Buffer {
+    if (tx.log !== '' || tx.info !== '' || tx.events.length !== 0) {
+        throw new Error(
+            'ResponseDeliverTx contains nondeterministic fields. log, info, events are must be zero values.' +
+                JSON.stringify(tx)
+        );
+    }
+    return encodeToBuffer(ResponseDeliverTx, tx);
 }

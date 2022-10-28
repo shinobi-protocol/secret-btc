@@ -2,20 +2,18 @@
 
 | Contract | Function | Message Length | Gas Used | Fee On SCRT (gasPrice = 0.25) |
 | -------- | -------  | -------------: | -------: | ----------------------------: |
-| Shinobi_local_SBTC_a49572d_1657030849 | set_viewing_key | 21 | 24,488 | 0.006 |
-| Shinobi_local_GATEWAY_a49572d_1657030849 | set_viewing_key | 21 | 24,401 | 0.006 |
-| Shinobi_local_LOG_a49572d_1657030849 | set_viewing_key | 21 | 24,236 | 0.006 |
-| Shinobi_local_SBTC_a49572d_1657030849 | increase_allowance | 110 | 25,510 | 0.006 |
-| Shinobi_local_SNB_a49572d_1657030849 | increase_allowance | 110 | 25,509 | 0.006 |
-| Shinobi_local_GATEWAY_a49572d_1657030849 | request_mint_address | 58 | 53,017 | 0.013 |
-| Shinobi_local_SHURIKEN_a49572d_1657030849 | bitcoin_s_p_v_add_headers | 5579 | 262,417 | 0.066 |
-| Shinobi_local_GATEWAY_a49572d_1657030849 | release_incorrect_amount_b_t_c | 582 | 74,063 | 0.019 |
-| Shinobi_local_GATEWAY_a49572d_1657030849 | request_mint_address | 58 | 53,122 | 0.013 |
-| Shinobi_local_SHURIKEN_a49572d_1657030849 | bitcoin_s_p_v_add_headers | 696 | 95,187 | 0.024 |
-| Shinobi_local_GATEWAY_a49572d_1657030849 | verify_mint_tx | 498 | 206,299 | 0.052 |
-| Shinobi_local_GATEWAY_a49572d_1657030849 | request_release_btc | 77 | 138,762 | 0.035 |
-| Shinobi_local_LOG_a49572d_1657030849 | add_events | 337 | 29,388 | 0.007 |
-| Shinobi_local_SHURIKEN_a49572d_1657030849 | s_f_p_s_proxy_append_subsequent_hashes | 2526 | 117,031 | 0.029 |
-| Shinobi_local_GATEWAY_a49572d_1657030849 | claim_released_btc | 19440 | 277,464 | 0.069 |
-| Shinobi_local_MULTISIG_a49572d_1657030849 | submit_transaction | 440 | 45,286 | 0.011 |
-| Shinobi_local_MULTISIG_a49572d_1657030849 | submit_transaction | 392 | 43,231 | 0.011 |
+| Shinobi_local_SBTC_9437d61_1665324588 | set_viewing_key | 21 | 24,473 | 0.006 |
+| Shinobi_local_SNB_9437d61_1665324588 | set_viewing_key | 21 | 24,472 | 0.006 |
+| Shinobi_local_GATEWAY_9437d61_1665324588 | set_viewing_key | 21 | 978,550 | 0.245 |
+| Shinobi_local_LOG_9437d61_1665324588 | set_viewing_key | 21 | 24,221 | 0.006 |
+| Shinobi_local_SNB_9437d61_1665324588 | send | 407 | 64,021 | 0.016 |
+| Shinobi_local_VESTING_9437d61_1665324588 | claim | 8 | 54,243 | 0.014 |
+| Shinobi_local_SBTC_9437d61_1665324588 | increase_allowance | 110 | 25,495 | 0.006 |
+| Shinobi_local_GATEWAY_9437d61_1665324588 | request_mint_address | 58 | 1,972,957 | 0.493 |
+| Shinobi_local_SHURIKEN_9437d61_1665324588 | bitcoin_s_p_v_add_headers | 5579 | 2,672,155 | 0.668 |
+| Shinobi_local_GATEWAY_9437d61_1665324588 | release_incorrect_amount_b_t_c | 582 | 2,956,329 | 0.739 |
+| Shinobi_local_GATEWAY_9437d61_1665324588 | request_mint_address | 58 | 1,973,061 | 0.493 |
+| Shinobi_local_SHURIKEN_9437d61_1665324588 | bitcoin_s_p_v_add_headers | 807 | 2,180,874 | 0.545 |
+| Shinobi_local_GATEWAY_9437d61_1665324588 | verify_mint_tx | 498 | 3,010,840 | 0.753 |
+| Shinobi_local_GATEWAY_9437d61_1665324588 | request_release_btc | 77 | 1,085,101 | 0.271 |
+| Shinobi_local_LOG_9437d61_1665324588 | add_events | 340 | 29,276 | 0.007 |

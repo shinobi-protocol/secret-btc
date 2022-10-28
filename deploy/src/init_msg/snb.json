@@ -20,8 +20,18 @@
         }
     },
     "mainnet-test": {
-        "name": "test-shinobi",
+        "name": "test-shinobi-beta2",
         "symbol": "TSNB",
+        "decimals": 8,
+        "config": {
+            "public_total_supply": true,
+            "enable_mint": true,
+            "enable_burn": true
+        }
+    },
+    "production": {
+        "name": "shinobi",
+        "symbol": "SNB",
         "decimals": 8,
         "config": {
             "public_total_supply": true,

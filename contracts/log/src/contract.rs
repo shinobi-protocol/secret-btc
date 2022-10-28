@@ -33,11 +33,17 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             for (address, event) in events {
                 // Check if the message sender is authorized source of event.
                 let authorized_source_address = match event.authorized_source() {
-                    EventSource::Gateway => &config.gateway.address,
-                    EventSource::User => &address,
+                    EventSource::Gateway => Some(&config.gateway.address),
+                    EventSource::User => Some(&address),
+                    EventSource::Any => None,
                 };
-                if &env.message.sender != authorized_source_address {
-                    return Err(StdError::unauthorized());
+                match authorized_source_address {
+                    Some(authorized_source_address) => {
+                        if &env.message.sender != authorized_source_address {
+                            return Err(StdError::unauthorized());
+                        }
+                    }
+                    None => {}
                 }
                 let address = &deps.api.canonical_address(&address)?;
                 let mut store = LogStorage::from_storage(&mut deps.storage, address);

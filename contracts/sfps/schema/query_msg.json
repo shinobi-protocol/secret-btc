@@ -101,21 +101,27 @@
         "verify_subsequent_light_blocks": {
           "type": "object",
           "required": [
+            "anchor_header",
+            "anchor_header_index",
             "commit_flags",
-            "current_highest_header",
-            "light_blocks"
+            "following_light_blocks"
           ],
           "properties": {
+            "anchor_header": {
+              "type": "string"
+            },
+            "anchor_header_index": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "commit_flags": {
               "type": "array",
               "items": {
                 "type": "boolean"
               }
             },
-            "current_highest_header": {
-              "type": "string"
-            },
-            "light_blocks": {
+            "following_light_blocks": {
               "type": "array",
               "items": {
                 "type": "string"

@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HandleAnswer",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "receive"
+      ],
+      "properties": {
+        "receive": {
+          "$ref": "#/definitions/VestingInfo"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "unlock"
+      ],
+      "properties": {
+        "unlock": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "ContractReference": {
+      "type": "object",
+      "required": [
+        "address",
+        "hash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "hash": {
+          "type": "string"
+        }
+      }
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Uint128": {
+      "type": "string"
+    },
+    "VestingInfo": {
+      "type": "object",
+      "required": [
+        "claimed_amount",
+        "end_time",
+        "id",
+        "locked_amount",
+        "locker",
+        "recipient",
+        "remaining_amount",
+        "start_time",
+        "token"
+      ],
+      "properties": {
+        "claimed_amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "end_time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "id": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "locked_amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "locker": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "recipient": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "remaining_amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "start_time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "token": {
+          "$ref": "#/definitions/ContractReference"
+        }
+      }
+    }
+  }
+}

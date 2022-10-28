@@ -7,16 +7,16 @@
         "bitcoin_network": "testnet",
         "confirmation": 1,
         "initial_header": {
-            "height": 2134944,
-            "header": "AABgIIMBl3QSUJXhF5g4vkrVpZQB3PGQm5sPOzEAAAAAAAAApradMvj3pDmKdvLdWHVTJ1BkxtwyXLUykkuzBnxJ4v1J5thhKsAAGnEfAKM="
+            "height": 2286144,
+            "header":"AEAzL0a/8xRTSyjCFarVbZzLRpTiylhzg256HiEAAAAAAAAAlQi8Hx8jXu4qMTjxcrb0PDA4PAFe+kuqhThB6KD+d8oxxdFi8do4GTsmkfk="
         }
     },
     "mainnet-test": {
         "bitcoin_network": "testnet",
         "confirmation": 1,
         "initial_header": {
-            "height": 2134944,
-            "header": "AABgIIMBl3QSUJXhF5g4vkrVpZQB3PGQm5sPOzEAAAAAAAAApradMvj3pDmKdvLdWHVTJ1BkxtwyXLUykkuzBnxJ4v1J5thhKsAAGnEfAKM="
+            "height": 2286144,
+            "header":"AEAzL0a/8xRTSyjCFarVbZzLRpTiylhzg256HiEAAAAAAAAAlQi8Hx8jXu4qMTjxcrb0PDA4PAFe+kuqhThB6KD+d8oxxdFi8do4GTsmkfk="
         }
     }
 }

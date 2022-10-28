@@ -4,46 +4,57 @@ use bitcoin::hashes::Hash;
 use bitcoin::util::uint::Uint256;
 use bitcoin::BlockHeader;
 use bitcoin_header_chain::header_chain::is_valid_proof_of_work_hash;
+use contract_test_utils::context::{
+    ClientDeps, Context, STATE_PROXY_CONTRACT_ADDRESS, STATE_PROXY_CONTRACT_HASH,
+};
+use contract_test_utils::contract_runner::ContractRunner;
+use cosmwasm_std::Binary;
+use cosmwasm_std::HandleResult;
+use cosmwasm_std::InitResponse;
+use cosmwasm_std::StdResult;
 use cosmwasm_std::{BlockInfo, Coin, ContractInfo, Env, Extern, HumanAddr, MessageInfo};
 use rand::{thread_rng, Rng};
-use shared_types::bitcoin_spv::InitMsg;
+use shared_types::bitcoin_spv::{HandleMsg, InitMsg, QueryMsg};
+use shared_types::state_proxy::client::Seed;
+use shared_types::ContractReference;
 use std::string::ToString;
 
-pub fn mock_env<U: Into<HumanAddr>>(sender: U, sent: &[Coin]) -> Env {
-    Env {
-        block: BlockInfo {
-            height: 12_345,
-            // change time
-            time: mock_timestamp() as u64,
-            chain_id: "cosmos-testnet-14002".to_string(),
-        },
-        message: MessageInfo {
-            sender: sender.into(),
-            sent_funds: sent.to_vec(),
-        },
-        contract: ContractInfo {
-            address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-        },
-        contract_key: Some("".to_string()),
-        contract_code_hash: "".to_string(),
+pub struct BitcoinSPVRunner {}
+
+impl contract_test_utils::contract_runner::ContractRunner for BitcoinSPVRunner {
+    type InitMsg = InitMsg;
+    type HandleMsg = HandleMsg;
+    type QueryMsg = QueryMsg;
+
+    fn init(deps: &mut ClientDeps, env: Env, msg: InitMsg) -> StdResult<InitResponse> {
+        init(deps, env, msg)
+    }
+
+    fn handle(deps: &mut ClientDeps, env: Env, msg: HandleMsg) -> HandleResult {
+        handle(deps, env, msg)
+    }
+
+    fn query(deps: &ClientDeps, msg: QueryMsg) -> StdResult<Binary> {
+        query(deps, msg)
     }
 }
 
-pub fn mock_timestamp() -> u32 {
-    1_610_794_295
-}
-
-pub fn init_helper() -> Extern<MockStorage, MockApi, MockQuerier> {
-    let mut deps = mock_dependencies(20, &[]);
+pub fn init_helper() -> Context {
+    let mut context = Context::new::<()>(vec![]);
     let env = mock_env("instantiator", &[]);
 
     let init_msg = InitMsg {
         bitcoin_network: "regtest".to_string(),
         initial_header: None,
         confirmation: 6,
+        seed: Seed::default(),
+        state_proxy: ContractReference {
+            address: STATE_PROXY_CONTRACT_ADDRESS.into(),
+            hash: STATE_PROXY_CONTRACT_HASH.into(),
+        },
     };
-    init(&mut deps, env, init_msg).unwrap();
-    deps
+    BitcoinSPVRunner::run_init(&mut context, env, init_msg).unwrap();
+    context
 }
 
 pub fn regtest_block_header(height: usize) -> Vec<u8> {

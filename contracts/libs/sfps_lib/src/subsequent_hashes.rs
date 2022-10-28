@@ -32,7 +32,8 @@ pub struct HeaderHashWithHeight {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Hashes {
-    pub first_hash: Vec<u8>,
+    pub anchor_hash: Vec<u8>,
+    pub anchor_index: u64,
     pub following_hashes: Vec<HeaderHashWithHeight>,
 }
 

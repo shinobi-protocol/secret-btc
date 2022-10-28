@@ -18,21 +18,25 @@ import { ContractClient, ExecuteResult } from '../ContractClient';
 
 class MultisigClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
     public async multisigStatus(): Promise<MultisigStatus> {
-        const result = await this.query({
-            multisig_status: {},
-        });
-        return result.multisig_status!;
+        return await this.query(
+            {
+                multisig_status: {},
+            },
+            (answer) => answer.multisig_status!
+        );
     }
 
     public async transactionStatus(
         transactionId: number
     ): Promise<TransactionStatus> {
-        const result = await this.query({
-            transaction_status: {
-                transaction_id: transactionId,
+        return await this.query(
+            {
+                transaction_status: {
+                    transaction_id: transactionId,
+                },
             },
-        });
-        return result.transaction_status!;
+            (answer) => answer.transaction_status!
+        );
     }
 
     // returns transaction Id
@@ -56,7 +60,7 @@ class MultisigClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
                     },
                 },
             },
-            100000,
+            10000000,
             (answerJson: string) => {
                 return Convert.toHandleAnswer(answerJson).submit_transaction
                     .transaction_id;

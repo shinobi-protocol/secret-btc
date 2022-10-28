@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import BigNumber from 'bignumber.js';
-import { Account, SecretNetworkClient } from 'secretjs';
+import { Account } from 'secretjs';
 import {
     ContractClient,
     ExecuteResult as GenericExecuteResult,
@@ -9,6 +9,7 @@ import {
 import { HandleMsg, QueryMsg, QueryAnswer, Convert, TokenInfo } from './types';
 import { Logger } from 'winston';
 import { UnitConverter } from '../../UnitConverter';
+import ShinobiClient from '../../ShinobiClient';
 
 type ExecuteResult<ANSWER> = GenericExecuteResult<HandleMsg, ANSWER>;
 
@@ -22,11 +23,11 @@ class TokenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
 
     constructor(
         contractAddress: string,
-        secretNetworkClient: SecretNetworkClient,
+        shinobiClient: ShinobiClient,
         logger: Logger,
         viewingKey?: string
     ) {
-        super(contractAddress, secretNetworkClient, logger);
+        super(contractAddress, shinobiClient, logger);
         this.viewingKey = viewingKey;
     }
 
@@ -75,24 +76,28 @@ class TokenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
     }
 
     public async tokenInfo(): Promise<TokenInfo> {
-        const answer = await this.query({
-            token_info: {},
-        });
-        return answer.token_info!;
+        return await this.query(
+            {
+                token_info: {},
+            },
+            (answer) => answer.token_info!
+        );
     }
 
     public async getBalance(viewingKey = this.viewingKey): Promise<BigNumber> {
         if (viewingKey === undefined) {
             throw new Error('no viewing key');
         }
-        const answer = await this.query({
-            balance: {
-                address: this.secretNetworkClient.address,
-                key: viewingKey,
+        const unitConverter = await this.unitConverter();
+        return await this.query(
+            {
+                balance: {
+                    address: this.secretNetworkClient.address,
+                    key: viewingKey,
+                },
             },
-        });
-        return (await this.unitConverter()).contractValueToUnit(
-            answer.balance!.amount
+            (answer) =>
+                unitConverter.contractValueToUnit(answer.balance!.amount)
         );
     }
 
@@ -103,21 +108,48 @@ class TokenClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         if (viewingKey === undefined) {
             throw new Error('no viewing key');
         }
-        const answer = await this.query({
-            allowance: {
-                owner: this.secretNetworkClient.address,
-                spender: spender,
-                key: viewingKey,
+        const unitConverter = await this.unitConverter();
+        return await this.query(
+            {
+                allowance: {
+                    owner: this.secretNetworkClient.address,
+                    spender: spender,
+                    key: viewingKey,
+                },
             },
-        });
-        return (await this.unitConverter()).contractValueToUnit(
-            answer.allowance!.allowance
+            (answer) =>
+                unitConverter.contractValueToUnit(answer.allowance!.allowance)
         );
     }
 
     public async maxValue(): Promise<BigNumber> {
         return (await this.unitConverter()).contractValueToUnit(
             MAX_CONTRACT_VALUE
+        );
+    }
+
+    public async send(
+        amount: BigNumber,
+        recipient: string,
+        memo?: string,
+        msg?: Buffer,
+        recipient_code_hash?: string,
+        gasLimit?: number
+    ): Promise<ExecuteResult<void>> {
+        return this.execute(
+            {
+                send: {
+                    amount: (await this.unitConverter()).unitToContractValue(
+                        amount
+                    ),
+                    recipient,
+                    memo,
+                    msg: msg ? msg.toString('base64') : undefined,
+                    recipient_code_hash,
+                },
+            },
+            gasLimit ? gasLimit : 50000,
+            () => void 0
         );
     }
 }

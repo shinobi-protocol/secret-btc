@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "admin"
+      ],
+      "properties": {
+        "admin": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "owner"
+      ],
+      "properties": {
+        "owner": {
+          "type": "object",
+          "required": [
+            "contract_label"
+          ],
+          "properties": {
+            "contract_label": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "read_contract_state"
+      ],
+      "properties": {
+        "read_contract_state": {
+          "type": "object",
+          "required": [
+            "key",
+            "signature"
+          ],
+          "properties": {
+            "key": {
+              "$ref": "#/definitions/Binary"
+            },
+            "signature": {
+              "$ref": "#/definitions/ReadContractStateSignature"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "ReadContractStateSignature": {
+      "type": "object",
+      "required": [
+        "contract_label",
+        "pub_key",
+        "signature"
+      ],
+      "properties": {
+        "contract_label": {
+          "$ref": "#/definitions/Binary"
+        },
+        "pub_key": {
+          "$ref": "#/definitions/Binary"
+        },
+        "signature": {
+          "$ref": "#/definitions/Binary"
+        }
+      }
+    }
+  }
+}

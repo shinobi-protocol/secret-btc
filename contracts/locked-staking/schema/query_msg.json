@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": ["latest_i_d"],
+      "properties": {
+        "latest_i_d": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["vesting_infos"],
+      "properties": {
+        "vesting_infos": {
+          "type": "object",
+          "required": ["ids"],
+          "properties": {
+            "ids": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["recipients_vesting_infos"],
+      "properties": {
+        "recipients_vesting_infos": {
+          "type": "object",
+          "required": ["page", "page_size", "recipient"],
+          "properties": {
+            "page": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "page_size": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "recipient": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["vesting_summary"],
+      "properties": {
+        "staking_summary": {
+          "type": "object",
+          "required": ["token"],
+          "properties": {
+            "token": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}

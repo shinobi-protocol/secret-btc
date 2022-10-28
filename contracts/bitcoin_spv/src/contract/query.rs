@@ -1,3 +1,4 @@
+use crate::contract::CONTRACT_LABEL;
 use crate::error::Error;
 use crate::state::chaindb::StorageChainDB;
 use crate::state::config::read_config;
@@ -12,34 +13,43 @@ use cosmwasm_std::{
     to_binary, Api, Binary, Extern, Querier, QueryResponse, QueryResult, StdError, Storage,
 };
 use shared_types::bitcoin_spv::{MerkleProofMsg, QueryAnswer, QueryMsg};
+use shared_types::state_proxy::client::Secp256k1ApiSigner;
+use shared_types::state_proxy::client::StateProxyDeps;
 use std::str::FromStr;
 use std::string::ToString;
 
 pub fn query<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>, msg: QueryMsg) -> QueryResult {
+    let deps = StateProxyDeps::restore(
+        &deps.storage,
+        &deps.api,
+        &deps.querier,
+        CONTRACT_LABEL,
+        &Secp256k1ApiSigner::new(&deps.api),
+    )?;
     let result = match msg {
-        QueryMsg::Config {} => query_config(deps),
-        QueryMsg::BestHeaderHash {} => query_best_header_hash(&deps.storage),
-        QueryMsg::BlockHeader { height, .. } => query_block_header(&deps.storage, height),
+        QueryMsg::Config {} => query_config(&deps),
+        QueryMsg::BestHeaderHash {} => query_best_header_hash(&deps),
+        QueryMsg::BlockHeader { height, .. } => query_block_header(&deps, height),
         QueryMsg::VerifyMerkleProof {
             height,
             tx,
             merkle_proof,
             ..
-        } => query_verify_merkle_proof(&deps.storage, height, tx, merkle_proof),
+        } => query_verify_merkle_proof(&deps, height, tx, merkle_proof),
     };
     Ok(result?)
 }
 
-fn query_config<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> Result<QueryResponse, Error> {
-    let config = read_config(&deps.storage)?;
+fn query_config<A: Api, Q: Querier>(deps: &StateProxyDeps<A, Q>) -> Result<QueryResponse, Error> {
+    let config = read_config(&deps.storage, &deps.api)?;
     Ok(to_binary(&QueryAnswer::Config(config))?)
 }
 
-fn query_best_header_hash<S: Storage>(storage: &S) -> Result<QueryResponse, Error> {
-    let config = read_config(storage)?;
-    let chaindb = StorageChainDB::from_readonly_storage(storage);
+fn query_best_header_hash<A: Api, Q: Querier>(
+    deps: &StateProxyDeps<A, Q>,
+) -> Result<QueryResponse, Error> {
+    let config = read_config(&deps.storage, &deps.api)?;
+    let chaindb = StorageChainDB::from_readonly_storage(&deps.storage);
     let mut header_chain = HeaderChain::new(chaindb, Network::from_str(&config.bitcoin_network)?);
     let tip = header_chain
         .tip()?
@@ -50,9 +60,12 @@ fn query_best_header_hash<S: Storage>(storage: &S) -> Result<QueryResponse, Erro
     Ok(to_binary(&result)?)
 }
 
-fn query_block_header<S: Storage>(storage: &S, height: u32) -> Result<QueryResponse, Error> {
-    let config = read_config(storage)?;
-    let chaindb = StorageChainDB::from_readonly_storage(storage);
+fn query_block_header<A: Api, Q: Querier>(
+    deps: &StateProxyDeps<A, Q>,
+    height: u32,
+) -> Result<QueryResponse, Error> {
+    let config = read_config(&deps.storage, &deps.api)?;
+    let chaindb = StorageChainDB::from_readonly_storage(&deps.storage);
     let mut header_chain = HeaderChain::new(chaindb, Network::from_str(&config.bitcoin_network)?);
     let block_header: StoredBlockHeader = header_chain
         .header_at(height)?
@@ -63,14 +76,14 @@ fn query_block_header<S: Storage>(storage: &S, height: u32) -> Result<QueryRespo
     Ok(to_binary(&result)?)
 }
 
-fn query_verify_merkle_proof<S: Storage>(
-    storage: &S,
+fn query_verify_merkle_proof<A: Api, Q: Querier>(
+    deps: &StateProxyDeps<A, Q>,
     height: u32,
     tx: Binary,
     merkle_proof: MerkleProofMsg,
 ) -> Result<QueryResponse, Error> {
-    let config = read_config(storage)?;
-    let chaindb = StorageChainDB::from_readonly_storage(storage);
+    let config = read_config(&deps.storage, &deps.api)?;
+    let chaindb = StorageChainDB::from_readonly_storage(&deps.storage);
     let tx: Transaction = deserialize::<Transaction>(tx.as_slice())?;
     let txid = tx.txid();
     let merkle_proof = msg_to_merkle_proof(merkle_proof)?;

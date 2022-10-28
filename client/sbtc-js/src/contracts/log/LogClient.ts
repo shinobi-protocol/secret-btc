@@ -1,5 +1,5 @@
-import { SecretNetworkClient } from 'secretjs';
 import { Logger } from 'winston';
+import ShinobiClient from '../../ShinobiClient';
 import {
     ContractClient,
     ExecuteResult as GenericExecuteResult,
@@ -13,11 +13,11 @@ class LogClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
 
     constructor(
         contractAddress: string,
-        secretNetworkClient: SecretNetworkClient,
+        shinobiClient: ShinobiClient,
         logger: Logger,
         viewingKey?: string
     ) {
-        super(contractAddress, secretNetworkClient, logger);
+        super(contractAddress, shinobiClient, logger);
         this.viewingKey = viewingKey;
     }
 
@@ -75,15 +75,17 @@ class LogClient extends ContractClient<HandleMsg, QueryMsg, QueryAnswer> {
         if (viewingKey === undefined) {
             throw new Error('no viewing key');
         }
-        const answer = await this.query({
-            log: {
-                address: this.senderAddress(),
-                key: viewingKey,
-                page,
-                page_size,
+        return await this.query(
+            {
+                log: {
+                    address: this.senderAddress(),
+                    key: viewingKey,
+                    page,
+                    page_size,
+                },
             },
-        });
-        return answer.log!.logs;
+            (answer) => answer.log!.logs
+        );
     }
 }
 
